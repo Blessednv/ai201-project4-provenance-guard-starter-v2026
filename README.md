@@ -72,9 +72,9 @@
 <!-- Write the rule in words, then give the numbers. What happens when the two
      signals disagree? -->
 
-**The rule:**
+**The rule:** I take the average of the two signals. Each one counts the same. When the two signals disagree, the average lands in the middle, and the system calls the text "unsure" instead of guessing. I chose this because two methods disagreeing really is uncertainty, and I'd rather say "unsure" than accuse a writer on the word of one signal.
 
-**The numbers:**
+**The numbers:** combined score = 0.5 × model score + 0.5 × style score. The weights are `WEIGHT_MODEL_SIGNAL = 0.5` and `WEIGHT_STYLE_SIGNAL = 0.5`, both in `config.py`. Both signals run from 0 to 1, and higher means more likely AI.
 
 **Where it lives:** `scoring.py::combine_signals`
 
@@ -82,6 +82,10 @@
      somewhere else, say where. -->
 
 **A case where my two signals split, and what my rule does with it:**
+
+**Split case: the stone text.** *"The stone is very pretty. I like the light color. It looks good in the kitchen. We will use it for the counter."* I wrote this myself, so it is human. The model signal scored it **0.73**, which leans AI, because the words are plain and easy to guess. The style signal scored it **0.34**, which leans human, because the text has some punctuation and varied sentence lengths. The two signals point in opposite directions.
+
+*What my rule does with it:* The stone text gets a model score of 0.73 and a style score of 0.34, so the combined score is 0.53. That falls in the middle, so the system calls it "unsure" and doesn't accuse the writer. The plain average turns a disagreement between the signals into uncertainty.
 
 
 
