@@ -124,11 +124,18 @@
 ```bash
 $ curl -X POST http://127.0.0.1:5000/submit \
   -H "Content-Type: application/json" \
-  -d '{"text": "...", "creator_id": "..."}'
+  -d '{"text": "The white oak flooring finally arrived for the apartment, but the contractors left it stacked right in the middle of the hallway so we can barely get to the kitchen.", "creator_id": "maria"}'
 ```
 
 ```json
-
+{
+  "confidence": 0.5,
+  "content_id": "cb2e38ce-bef3-4285-b480-302884083cae",
+  "guess": "unsure",
+  "label": "placeholder",
+  "model_score": 0.5055,
+  "style_score": 0.0
+}
 ```
 
 **An appeal**
@@ -146,11 +153,26 @@ $ curl -X POST http://127.0.0.1:5000/appeal \
 **What the log shows afterwards**
 
 ```bash
-$ curl "http://127.0.0.1:5000/log?limit=3"
+$ curl "http://127.0.0.1:5000/log?limit=5"
 ```
 
 ```json
-
+{
+  "count": 1,
+  "entries": [
+    {
+      "combined_score": null,
+      "content_id": "cb2e38ce-bef3-4285-b480-302884083cae",
+      "creator_id": "maria",
+      "guess": "unsure",
+      "label": null,
+      "model_score": 0.5055,
+      "status": "decided",
+      "style_score": null,
+      "timestamp": "2026-10-31T16:20:33+00:00"
+    }
+  ]
+}
 ```
 
 ---
