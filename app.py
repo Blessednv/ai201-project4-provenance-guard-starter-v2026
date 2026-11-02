@@ -215,13 +215,16 @@ def submit():
     # Milestone 4: second signal, then combine the two into one score.
     style_score = stylometry.style_signal(text)
     combined_score = scoring.combine_signals(model_score, style_score)
+    # Milestone 5: turn the combined score into a guess and a label.
+    guess, label = scoring.score_to_label(combined_score)
     content_id = str(uuid.uuid4())
 
     # Milestone 3, step 4: write this submission to the audit log.
     audit.log_decision(
         content_id=content_id,
         creator_id=creator_id,
-        guess="unsure",
+        guess=guess,
+        label=label,
         model_score=model_score,
         style_score=style_score,
         combined_score=combined_score,
@@ -230,9 +233,9 @@ def submit():
 
     return jsonify({
         "content_id": content_id,
-        "guess": "unsure",
+        "guess": guess,
         "confidence": combined_score,
-        "label": "placeholder",
+        "label": label,
         "model_score": model_score,
         "style_score": style_score,
     }), 200
@@ -261,11 +264,43 @@ def appeal():
     payload = request.get_json(silent=True) or {}
 
     # TODO: delete this and build the route.
+
+    content_id = payload.get("content_id")
+    reasoning = payload.get("reasoning")
+
+    if not isinstance(reasoning, str) or not reasoning.strip():
+        return jsonify({
+            "error": "reasoning_required",
+            "message": "Please tell us why you think this label is wrong.",
+        }), 400
+
+    entries = audit.entries_for(content_id) if content_id else []
+    if not entries:
+        return jsonify({
+            "error": "content_id_not_found",
+            "message": "We couldn't find that submission. Please check the ID.",
+        }), 404
+
+    already_under_review = any(e.get("status") == "under_review" for e in entries)
+    if already_under_review:
+        return jsonify({
+            "content_id": content_id,
+            "status": "under_review",
+            "message": "Your appeal is already being reviewed. Thank you for your patience.",
+        }), 200
+
+    original = entries[0]
+    audit.log_appeal(
+        content_id=content_id,
+        creator_id=original.get("creator_id"),
+        reasoning=reasoning.strip(),
+    )
+
     return jsonify({
-        "error": "not_implemented",
-        "message": "POST /appeal isn't built yet — see the TODO in app.py.",
-        "you_sent": payload,
-    }), 501
+        "content_id": content_id,
+        "status": "under_review",
+        "message": "Thank you. Your appeal has been recorded and your writing is now under review.",
+    }), 200
 
 
 # ── Already works ─────────────────────────────────────────────────────────────
