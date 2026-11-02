@@ -303,6 +303,24 @@ def appeal():
     }), 200
 
 
+# ── Stretch: one item's current status ────────────────────────────────────────
+
+@app.get("/content/<content_id>")
+def get_content(content_id):
+    """The current status of one submission: 'decided' or 'under_review'."""
+    entries = audit.entries_for(content_id)
+    if not entries:
+        return jsonify({
+            "error": "content_id_not_found",
+            "message": "We couldn't find that submission. Please check the ID.",
+        }), 404
+
+    return jsonify({
+        "content_id": content_id,
+        "status": entries[-1].get("status"),
+    }), 200
+
+
 # ── Already works ─────────────────────────────────────────────────────────────
 
 @app.get("/log")
