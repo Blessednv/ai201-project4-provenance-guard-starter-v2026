@@ -260,6 +260,59 @@ $ curl "http://127.0.0.1:5000/log?limit=5"
 - *What came back:* The AI wrote me example texts, and another window gave me a different pair. Before using them, I was asked who wrote the "formal human" one, because it only counts as human if a person wrote it.
 - *What I changed:* I used the formal text that I wrote myself, so it was truly human. When the edited AI text scored like human writing, I decided not to change my rule just to fix four examples, and wrote it down as a known weakness instead.
 
+---
+
+## Stretch Features
+
+**Declared before building: a `GET /content/<id>` endpoint (+1 pt).**
+
+I am adding one stretch feature: a `GET /content/<id>` route in `app.py`. A writer who has a `content_id` can ask what is happening with their writing. The route looks up the `content_id` with `audit.entries_for`, and returns the item's current status, which is `decided` at first and `under_review` after an appeal. It only reads the log and never writes to it. If the `content_id` doesn't exist, it returns a 404 with the same `error` and `message` shape as my other routes.
+
+**What it changed:** Before this, a writer could send text and get a label (`/submit`), or appeal a label (`/appeal`), but could not ask what was happening with their writing. Now a writer with a `content_id` can check its current status at any time. It only reads the log, so asking never changes anything, and a fake ID gets a clear 404 instead of a crash. I added one route in `app.py`, `get_content`, placed just above `/log`, and no other file changed.
+
+**A request and the response it returns:**
+
+An item I appealed earlier, so its newest log entry says `under_review`:
+
+```bash
+$ curl http://127.0.0.1:5000/content/54aa2188-ec2e-4f96-b4b9-d47397ce7617
+```
+
+```json
+{
+  "content_id": "54aa2188-ec2e-4f96-b4b9-d47397ce7617",
+  "status": "under_review"
+}
+```
+
+An item nobody appealed, so it is still `decided`:
+
+```bash
+$ curl http://127.0.0.1:5000/content/9b6ef075-2771-41b5-abab-26dfb5d3f1f1
+```
+
+```json
+{
+  "content_id": "9b6ef075-2771-41b5-abab-26dfb5d3f1f1",
+  "status": "decided"
+}
+```
+
+An ID that does not exist:
+
+```bash
+$ curl -i http://127.0.0.1:5000/content/not-a-real-id
+```
+
+```json
+{
+  "error": "content_id_not_found",
+  "message": "We couldn't find that submission. Please check the ID."
+}
+```
+
+This last one returns HTTP status `404 NOT FOUND`.
+
 <!-- ═══════════════════════ UNIT 8 — THE TEST ═══════════════════════ -->
 
 ---
