@@ -39,7 +39,13 @@
 <!-- The path a submission takes, from arriving to the label a reader sees.
      Six or seven steps — this is the trace you wrote in Milestone 1. -->
 
-
+1. A writer sends their text and a `creator_id` to the `/submit` route.
+2. The **Math Robot** (the model signal, `detector.py`) reads the text and scores how predictable the words are.
+3. The **Counting Machine** (the style signal, `stylometry.py`) ignores the meaning and measures the shape of the text: sentence length spread, word variety in the first 100 words, and punctuation density.
+4. The **combining rule** (`scoring.py::combine_signals`) takes a plain 50/50 average of the two scores to make one final number from 0 to 1.
+5. `score_to_label` turns that number into one of three labels: high-confidence human (below 0.35), unsure (0.35 to 0.65) or high-confidence AI (above 0.65), written in plain English.
+6. The decision is recorded in `logs/audit.jsonl`: the `content_id`, the writer, both signal scores, the combined score, the guess, the label and the status.
+7. The writer gets the label back with the `content_id`. If they disagree, they can use `/appeal` to ask for a review. That records their reason and sets the status to `under_review`.
 
 ---
 
@@ -53,19 +59,19 @@
 
 ### Signal one — the model signal
 
-**What it measures:**
+**What it measures:** How predictable the words are. A language model (`gpt2`, running on my own computer) reads the text and I measure how surprised it is by each word. The result is a score from 0 to 1, and higher means more likely AI.
 
-**Why that might differ between human and AI writing:**
+**Why that might differ between human and AI writing:** An AI writes by picking likely next words, so its text is easy for another model to predict. Human writing wanders more, with odd word choices, sudden turns and specific details, so it surprises the model more.
 
-**What it can't see:**
+**What it can't see:** It can't see who wrote the text. It only sees how guessable the words are. Plain, simple writing is easy to guess, so it scores as machine-like even when a person wrote it. My plain human stone text ("The stone is very pretty. I like the light color...") scored 0.73. That could also affect people writing in a second language, or anyone who writes plainly on purpose. It also fails the other way: a lightly-edited AI text scored 0.35, in the human range, because the edits made the words less predictable.
 
 ### Signal two — the style signal
 
-**What it measures:**
+**What it measures:** The shape of the text, without understanding a word. It combines three measures into one score from 0 to 1, where higher means more likely AI: how much sentence lengths vary, how many different words are used in the first 100 words, and how many commas, semicolons, colons and dashes there are per word. The three count equally in the average. In practice the word-variety measure barely changed on my short test texts (0.83 to 1.00), so it did little to separate them.
 
-**Why that might differ between human and AI writing:**
+**Why that might differ between human and AI writing:** AI writing tends toward even, mid-length sentences and a narrower range of words, because that's what "most likely next word" produces on average. Human writing is lumpier, with a three-word sentence next to a forty-word one.
 
-**What it can't see:**
+**What it can't see:** It can't read, so it has no idea what the text says. Anything that changes the shape without changing the meaning moves it, such as adding typos, breaking up sentences or pasting in a quotation. That's cheap to do on purpose. It is also unreliable on short texts: with only one sentence it can't measure spread at all and returns "can't tell" (0.5), and my short, plain human stone text scored 0.83 on sentence-length spread, as if it were machine-neat. Its overall scores also stayed in a narrow band (0.28 to 0.51 on my five test texts), so on its own it's a mild hint, not a strong judge.
 
 ### The combining rule
 
@@ -230,17 +236,29 @@ $ curl "http://127.0.0.1:5000/log?limit=5"
 
 ## How I Used AI
 
-**Moment 1**
+**Moment 1: the label for human writing**
 
-- *What I asked for:*
-- *What came back:*
-- *What I changed:*
+- *What I asked for:* My project shows a short message to a writer after it checks their text. I asked the AI to help me write the message for text that looks like it was written by a person.
+- *What came back:* The AI gave me "We think this was probably written by a person." It was accurate, but it sounded cold, like a machine reading out a measurement. I realized I wouldn't want to receive that message about my own writing.
+- *What I changed:* I told the AI I wanted something more positive, encouraging and kind. I chose this version: "Thank you for sharing your writing. It looks like it was written by a real person, and that's great to see."
 
-**Moment 2**
+**Moment 2: a suggestion I didn't use**
 
-- *What I asked for:*
-- *What came back:*
-- *What I changed:*
+- *What I asked for:* I asked a second AI window to improve my message for the case where the system can't tell who wrote the text. I wanted a second opinion on the wording.
+- *What came back:* It suggested saying "we give the writer the benefit of the doubt." It sounded kind at first, and the rest of its feedback was useful.
+- *What I changed:* I decided not to use that sentence. "Benefit of the doubt" quietly says "we suspected you and let it go," so someone who wrote every word themselves might feel accused. I kept a version that says honestly that the result isn't clear.
+
+**Moment 3: reading my messages like a stranger**
+
+- *What I asked for:* I asked an AI to read my three messages as if it were a writer who had received them on its own work. I asked it to say what it would think and what it would do next, and I told it not to rewrite them.
+- *What came back:* It said the "AI" message sounded like an accusation, and that it left out people who only used a tool a little, like a grammar checker. It also said my "can't tell" message gave the writer nothing to do next, and that the line "nothing is wrong with your writing" could make someone wonder if something was wrong.
+- *What I changed:* The "can't tell" message now says "The result isn't clear" and offers an appeal, so the writer isn't left stuck. The "AI" message now says "If this doesn't match how you wrote it, please submit an appeal," which covers people who used a tool only a little.
+
+**Moment 4: choosing test texts I could trust**
+
+- *What I asked for:* I wanted four test texts to check my system: one clearly AI, one clearly human, one formal human, and one AI text with small human-looking edits. I knew the test would only mean something if I was sure who wrote each one.
+- *What came back:* The AI wrote me example texts, and another window gave me a different pair. Before using them, I was asked who wrote the "formal human" one, because it only counts as human if a person wrote it.
+- *What I changed:* I used the formal text that I wrote myself, so it was truly human. When the edited AI text scored like human writing, I decided not to change my rule just to fix four examples, and wrote it down as a known weakness instead.
 
 <!-- ═══════════════════════ UNIT 8 — THE TEST ═══════════════════════ -->
 
