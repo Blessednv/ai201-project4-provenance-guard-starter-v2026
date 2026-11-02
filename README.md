@@ -100,14 +100,16 @@
 
 | Label | Score range | The exact text a reader sees |
 |---|---|---|
-| high-confidence human |  |  |
-| unsure |  |  |
-| high-confidence AI |  |  |
+| high-confidence human | below 0.35 | "Thank you for sharing your writing. It looks like it was written by a real person, and that's great to see." |
+| unsure | 0.35 to 0.65 | "The result isn't clear. We can't tell for sure whether this was written by a person or with AI tools. If you'd like us to take another look, you can submit an appeal." |
+| high-confidence AI | above 0.65 | "We think AI tools may have been used to help write this, but we could be wrong. If this doesn't match how you wrote it, please submit an appeal." |
 
 **Why I worded the "unsure" one this way:**
 <!-- It's the hardest of the three. It has to admit uncertainty without
      sounding like an accusation, because the person reading it may well have
      written every word themselves. -->
+
+The person reading this may have written every word themselves, so it must not sound like an accusation. It starts by saying plainly that the result isn't clear, and it doesn't guess. It gives the writer a next step, the appeal, so they never feel stuck. It talks about the text, not the person, and it avoids technical words like "score" or "threshold."
 
 
 
@@ -128,17 +130,17 @@
 ```bash
 $ curl -X POST http://127.0.0.1:5000/submit \
   -H "Content-Type: application/json" \
-  -d '{"text": "The white oak flooring finally arrived for the apartment, but the contractors left it stacked right in the middle of the hallway so we can barely get to the kitchen.", "creator_id": "maria"}'
+  -d '{"text": "Artificial intelligence is transforming the way we live and work. It offers numerous benefits, including increased efficiency, improved decision-making, and enhanced productivity. However, it is important to consider the ethical implications and ensure that these technologies are developed responsibly.", "creator_id": "maria"}'
 ```
 
 ```json
 {
-  "confidence": 0.5,
-  "content_id": "cb2e38ce-bef3-4285-b480-302884083cae",
-  "guess": "unsure",
-  "label": "placeholder",
-  "model_score": 0.5055,
-  "style_score": 0.0
+  "confidence": 0.6926,
+  "content_id": "54aa2188-ec2e-4f96-b4b9-d47397ce7617",
+  "guess": "ai",
+  "label": "We think AI tools may have been used to help write this, but we could be wrong. If you wrote this yourself, please submit an appeal.",
+  "model_score": 0.8759,
+  "style_score": 0.5094
 }
 ```
 
@@ -147,11 +149,15 @@ $ curl -X POST http://127.0.0.1:5000/submit \
 ```bash
 $ curl -X POST http://127.0.0.1:5000/appeal \
   -H "Content-Type: application/json" \
-  -d '{"content_id": "...", "reasoning": "..."}'
+  -d '{"content_id": "54aa2188-ec2e-4f96-b4b9-d47397ce7617", "reasoning": "I wrote this myself for a class assignment."}'
 ```
 
 ```json
-
+{
+  "content_id": "54aa2188-ec2e-4f96-b4b9-d47397ce7617",
+  "message": "Thank you. Your appeal has been recorded and your writing is now under review.",
+  "status": "under_review"
+}
 ```
 
 **What the log shows afterwards**
@@ -162,18 +168,59 @@ $ curl "http://127.0.0.1:5000/log?limit=5"
 
 ```json
 {
-  "count": 1,
+  "count": 5,
   "entries": [
     {
-      "combined_score": null,
-      "content_id": "cb2e38ce-bef3-4285-b480-302884083cae",
+      "combined_score": 0.6926,
+      "content_id": "a03da2f2-5003-488e-a048-8bdef6d6ce3b",
       "creator_id": "maria",
       "guess": "unsure",
       "label": null,
-      "model_score": 0.5055,
+      "model_score": 0.8759,
       "status": "decided",
-      "style_score": null,
-      "timestamp": "2026-10-31T16:20:33+00:00"
+      "style_score": 0.5094,
+      "timestamp": "2026-10-31T17:57:52+00:00"
+    },
+    {
+      "combined_score": 0.6926,
+      "content_id": "54aa2188-ec2e-4f96-b4b9-d47397ce7617",
+      "creator_id": "maria",
+      "guess": "ai",
+      "label": "We think AI tools may have been used to help write this, but we could be wrong. If you wrote this yourself, please submit an appeal.",
+      "model_score": 0.8759,
+      "status": "decided",
+      "style_score": 0.5094,
+      "timestamp": "2026-10-31T19:08:55+00:00"
+    },
+    {
+      "combined_score": 0.5339,
+      "content_id": "9b6ef075-2771-41b5-abab-26dfb5d3f1f1",
+      "creator_id": "maria",
+      "guess": "unsure",
+      "label": "We can't tell for sure whether this was written by a person or with AI tools. That doesn't mean anything is wrong with your writing.",
+      "model_score": 0.7321,
+      "status": "decided",
+      "style_score": 0.3358,
+      "timestamp": "2026-10-31T19:09:15+00:00"
+    },
+    {
+      "combined_score": 0.3224,
+      "content_id": "a2ce1d36-6b73-423d-a3ad-bc4d7370bf77",
+      "creator_id": "maria",
+      "guess": "human",
+      "label": "Thank you for sharing your writing. It looks like it was written by a real person, and that's great to see.",
+      "model_score": 0.2927,
+      "status": "decided",
+      "style_score": 0.3521,
+      "timestamp": "2026-10-31T19:09:39+00:00"
+    },
+    {
+      "content_id": "54aa2188-ec2e-4f96-b4b9-d47397ce7617",
+      "creator_id": "maria",
+      "event": "appeal",
+      "reasoning": "I wrote this myself for a class assignment.",
+      "status": "under_review",
+      "timestamp": "2026-11-02T16:31:44+00:00"
     }
   ]
 }
