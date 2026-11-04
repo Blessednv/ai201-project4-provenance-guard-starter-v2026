@@ -151,7 +151,7 @@ def health():
 # ── YOU BUILD THIS ────────────────────────────────────────────────────────────
 
 @app.post("/submit")
-# @limiter.limit(f"{config.RATE_LIMIT_PER_MINUTE}/minute;{config.RATE_LIMIT_PER_DAY}/day")
+@limiter.limit(f"{config.RATE_LIMIT_PER_MINUTE}/minute;{config.RATE_LIMIT_PER_DAY}/day")
 def submit():
     """
     Take a piece of text, decide about it, log the decision, answer.
@@ -210,6 +210,17 @@ def submit():
 
     text = payload.get("text", "")
     creator_id = payload.get("creator_id")
+
+    # Refuse missing, empty or non-string text before it reaches the model.
+    if not isinstance(text, str) or not text.strip():
+        audit.log_rejection(
+            creator_id=creator_id or "unknown",
+            reason="missing_or_empty_text",
+        )
+        return jsonify({
+            "error": "text_required",
+            "message": "Please send some writing to check.",
+        }), 400
 
     model_score = detector.model_signal(text)
     # Milestone 4: second signal, then combine the two into one score.
