@@ -319,24 +319,31 @@ This last one returns HTTP status `404 NOT FOUND`.
 
 ## Rate Limiting
 
-**My limits:** ___ per minute, ___ per day
+**My limits:** 5 per minute, 50 per day
 
 **Why those numbers and not others:**
 <!-- Think about two people: a real writer submitting their own work a few
      times an hour, and a script sending a thousand variations to map your
      thresholds. Your numbers have to be liveable for the first and hostile to
      the second. -->
+A real writer submits a piece, reads the result, and maybe resubmits once or
+twice, so 5 a minute doesn't bother them. 50 a day is far more than anyone
+checking their own work needs. A script mapping my thresholds needs hundreds of
+variations, so 50 a day slows it down a lot. Each submission also runs a local
+model for 1–2 seconds, so a low per-minute cap protects the machine too.
 
 **What a caller counts as:** <!-- per address, or per creator_id? They fail
 differently — one script can look like a thousand callers, and one household
 can look like one. -->
+Per `creator_id`, falling back to the IP address when there is none. The
+weakness: a script can rotate creator IDs to get around the limit.
 
 **The run of status codes when I pushed past it:**
 
 <!-- python run_attacks.py --flood 15 -->
 
 ```
-
+200 200 200 200 200 429 429 429 429 429 429 429 429 429 429
 ```
 
 ---
@@ -427,6 +434,10 @@ that produced it:
 
 <!-- For each attack still getting through and each criterion still missed:
      what you'd do, and why you stopped. -->
+
+**Audit log limitation:** the log records all nine required fields, but not the
+signal weights or label thresholds in force at the time. Changing config.py
+later makes older entries harder to interpret.
 
 
 
