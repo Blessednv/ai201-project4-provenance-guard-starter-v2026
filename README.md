@@ -416,18 +416,104 @@ least able to argue back.
 
 | Criterion | Target | Run 1 | Run 2 | Run 3 | Verdict |
 |---|---|---|---|---|---|
-| 1.  |  |  |  |  |  |
-| 2.  |  |  |  |  |  |
-| 3.  |  |  |  |  |  |
-| 4.  |  |  |  |  |  |
-| 5.  |  |  |  |  |  |
+| 1. My own writing flagged as AI | ≤ 1 of 10 | 0/10 | 0/10 | 0/10 | **MET** |
+| 2. Score spread (AI avg minus human avg) | ≥ 0.3 | gap 0.134 | gap 0.134 | gap 0.134 | **MISSED** |
+| 3. Label coverage | all 3 labels appear, "unsure" at least twice | no "human" (0 human, 11 unsure, 4 ai) | same | same | **MISSED** |
+| 4. Appeal path | 11 of 11 | 11/11 | 11/11 | 11/11 | **MET** |
+| 5. Bad input | 8 of 8 + normal check | 4/8 (+ normal OK) | 4/8 (+ normal OK) | 4/8 (+ normal OK) | **MISSED** |
+
+Notes:
+- All three trials were identical for every criterion, as expected, because neither signal is random.
+- Criterion 1, trial 1: the first piece timed out once at 90 seconds (a slow first request). The same text scored fine in the other runs.
+- Criterion 4 was not run through `run_eval.py`, because it only sends `POST /submit` and can't send appeals. I tested it with a separate script (not in this repo) that submitted 7 texts per trial, sent the 11 appeals, and counted the lines in `logs/audit.jsonl` before and after each appeal.
+- Source: `results/run_2026-11-05_2008_before.md`, produced by `run_eval.py::main`.
 
 **Real output from one trial**, pasted as text, naming the file and function
 that produced it:
 
-```json
+**Criterion 1: my own writing** · produced by `run_eval.py::main` (which POSTs to `app.py::submit`), saved in `results/run_2026-11-05_2008_before.md`, trial 2
 
+```json
+[
+  {"status": 200, "guess": "unsure", "confidence": 0.4949, "model_score": 0.6012, "style_score": 0.3886, "label": "The result isn't clear. We can't tell for sure whether this was written by a person or with AI tools. If you'd like us to take another look, you can submit an appeal.", "sent": "We have a delivery scheduled for tomorrow November 5th .\n\nAfter inform"},
+  {"status": 200, "guess": "unsure", "confidence": 0.5458, "model_score": 0.6672, "style_score": 0.4244, "label": "The result isn't clear. We can't tell for sure whether this was written by a person or with AI tools. If you'd like us to take another look, you can submit an appeal.", "sent": "At the 1st Client Site meeting, we mentioned that we would be travelin"},
+  {"status": 200, "guess": "unsure", "confidence": 0.467, "model_score": 0.5639, "style_score": 0.3702, "label": "The result isn't clear. We can't tell for sure whether this was written by a person or with AI tools. If you'd like us to take another look, you can submit an appeal.", "sent": "I am learning how to build web servers in Python coding language. It h"},
+  {"status": 200, "guess": "unsure", "confidence": 0.572, "model_score": 0.8445, "style_score": 0.2995, "label": "The result isn't clear. We can't tell for sure whether this was written by a person or with AI tools. If you'd like us to take another look, you can submit an appeal.", "sent": "We are planning a trip to Hawaii next spring. I am really looking forw"},
+  {"status": 200, "guess": "unsure", "confidence": 0.3738, "model_score": 0.3459, "style_score": 0.4016, "label": "The result isn't clear. We can't tell for sure whether this was written by a person or with AI tools. If you'd like us to take another look, you can submit an appeal.", "sent": "Fixing this code bug took me three hours today. I kept missing a small"},
+  {"status": 200, "guess": "unsure", "confidence": 0.5166, "model_score": 0.6942, "style_score": 0.3389, "label": "The result isn't clear. We can't tell for sure whether this was written by a person or with AI tools. If you'd like us to take another look, you can submit an appeal.", "sent": "The stone is very pretty. I like the light color. It looks good in the"},
+  {"status": 200, "guess": "unsure", "confidence": 0.6317, "model_score": 0.7634, "style_score": 0.5, "label": "The result isn't clear. We can't tell for sure whether this was written by a person or with AI tools. If you'd like us to take another look, you can submit an appeal.", "sent": "I need to buy milk, eggs, and bread from the grocery store."},
+  {"status": 200, "guess": "unsure", "confidence": 0.5422, "model_score": 0.7468, "style_score": 0.3376, "label": "The result isn't clear. We can't tell for sure whether this was written by a person or with AI tools. If you'd like us to take another look, you can submit an appeal.", "sent": "The weather is really nice today, so I might go for a walk."},
+  {"status": 200, "guess": "unsure", "confidence": 0.4156, "model_score": 0.6645, "style_score": 0.1667, "label": "The result isn't clear. We can't tell for sure whether this was written by a person or with AI tools. If you'd like us to take another look, you can submit an appeal.", "sent": "I really enjoyed watching that movie last night."},
+  {"status": 200, "guess": "unsure", "confidence": 0.48, "model_score": 0.7934, "style_score": 0.1667, "label": "The result isn't clear. We can't tell for sure whether this was written by a person or with AI tools. If you'd like us to take another look, you can submit an appeal.", "sent": "My cat is sleeping on the couch right now."}
+]
 ```
+
+**Criterion 2: score spread** · produced by `run_eval.py::main` (which POSTs to `app.py::submit`), saved in `results/run_2026-11-05_2008_before.md`, trial 2
+
+```json
+[
+  {"status": 200, "guess": "ai", "confidence": 0.6581, "model_score": 0.7773, "style_score": 0.5389, "label": "We think AI tools may have been used to help write this, but we could be wrong. If this doesn't match how you wrote it, please submit an appeal.", "sent": "Effective time management is essential for achieving both personal and"},
+  {"status": 200, "guess": "ai", "confidence": 0.7266, "model_score": 0.9191, "style_score": 0.534, "label": "We think AI tools may have been used to help write this, but we could be wrong. If this doesn't match how you wrote it, please submit an appeal.", "sent": "Climate change represents one of the most significant challenges facin"},
+  {"status": 200, "guess": "ai", "confidence": 0.6533, "model_score": 0.885, "style_score": 0.4217, "label": "We think AI tools may have been used to help write this, but we could be wrong. If this doesn't match how you wrote it, please submit an appeal.", "sent": "Artificial intelligence has the potential to transform numerous indust"},
+  {"status": 200, "guess": "ai", "confidence": 0.7077, "model_score": 0.899, "style_score": 0.5165, "label": "We think AI tools may have been used to help write this, but we could be wrong. If this doesn't match how you wrote it, please submit an appeal.", "sent": "A balanced diet plays a crucial role in maintaining overall health and"},
+  {"status": 200, "guess": "unsure", "confidence": 0.5085, "model_score": 0.6093, "style_score": 0.4078, "label": "The result isn't clear. We can't tell for sure whether this was written by a person or with AI tools. If you'd like us to take another look, you can submit an appeal.", "sent": "Remote work has become increasingly popular in recent years, offering "},
+  {"status": 200, "guess": "unsure", "confidence": 0.5166, "model_score": 0.6942, "style_score": 0.3389, "label": "The result isn't clear. We can't tell for sure whether this was written by a person or with AI tools. If you'd like us to take another look, you can submit an appeal.", "sent": "The stone is very pretty. I like the light color. It looks good in the"},
+  {"status": 200, "guess": "unsure", "confidence": 0.6317, "model_score": 0.7634, "style_score": 0.5, "label": "The result isn't clear. We can't tell for sure whether this was written by a person or with AI tools. If you'd like us to take another look, you can submit an appeal.", "sent": "I need to buy milk, eggs, and bread from the grocery store."},
+  {"status": 200, "guess": "unsure", "confidence": 0.5422, "model_score": 0.7468, "style_score": 0.3376, "label": "The result isn't clear. We can't tell for sure whether this was written by a person or with AI tools. If you'd like us to take another look, you can submit an appeal.", "sent": "The weather is really nice today, so I might go for a walk."},
+  {"status": 200, "guess": "unsure", "confidence": 0.4156, "model_score": 0.6645, "style_score": 0.1667, "label": "The result isn't clear. We can't tell for sure whether this was written by a person or with AI tools. If you'd like us to take another look, you can submit an appeal.", "sent": "I really enjoyed watching that movie last night."},
+  {"status": 200, "guess": "unsure", "confidence": 0.48, "model_score": 0.7934, "style_score": 0.1667, "label": "The result isn't clear. We can't tell for sure whether this was written by a person or with AI tools. If you'd like us to take another look, you can submit an appeal.", "sent": "My cat is sleeping on the couch right now."}
+]
+```
+
+**Criterion 3: label coverage** · produced by `run_eval.py::main` (which POSTs to `app.py::submit`), saved in `results/run_2026-11-05_2008_before.md`, trial 2
+
+```json
+[
+  {"status": 200, "guess": "unsure", "confidence": 0.4949, "model_score": 0.6012, "style_score": 0.3886, "label": "The result isn't clear. We can't tell for sure whether this was written by a person or with AI tools. If you'd like us to take another look, you can submit an appeal.", "sent": "We have a delivery scheduled for tomorrow November 5th .\n\nAfter inform"},
+  {"status": 200, "guess": "unsure", "confidence": 0.5458, "model_score": 0.6672, "style_score": 0.4244, "label": "The result isn't clear. We can't tell for sure whether this was written by a person or with AI tools. If you'd like us to take another look, you can submit an appeal.", "sent": "At the 1st Client Site meeting, we mentioned that we would be travelin"},
+  {"status": 200, "guess": "unsure", "confidence": 0.467, "model_score": 0.5639, "style_score": 0.3702, "label": "The result isn't clear. We can't tell for sure whether this was written by a person or with AI tools. If you'd like us to take another look, you can submit an appeal.", "sent": "I am learning how to build web servers in Python coding language. It h"},
+  {"status": 200, "guess": "unsure", "confidence": 0.572, "model_score": 0.8445, "style_score": 0.2995, "label": "The result isn't clear. We can't tell for sure whether this was written by a person or with AI tools. If you'd like us to take another look, you can submit an appeal.", "sent": "We are planning a trip to Hawaii next spring. I am really looking forw"},
+  {"status": 200, "guess": "unsure", "confidence": 0.3738, "model_score": 0.3459, "style_score": 0.4016, "label": "The result isn't clear. We can't tell for sure whether this was written by a person or with AI tools. If you'd like us to take another look, you can submit an appeal.", "sent": "Fixing this code bug took me three hours today. I kept missing a small"},
+  {"status": 200, "guess": "unsure", "confidence": 0.5166, "model_score": 0.6942, "style_score": 0.3389, "label": "The result isn't clear. We can't tell for sure whether this was written by a person or with AI tools. If you'd like us to take another look, you can submit an appeal.", "sent": "The stone is very pretty. I like the light color. It looks good in the"},
+  {"status": 200, "guess": "unsure", "confidence": 0.6317, "model_score": 0.7634, "style_score": 0.5, "label": "The result isn't clear. We can't tell for sure whether this was written by a person or with AI tools. If you'd like us to take another look, you can submit an appeal.", "sent": "I need to buy milk, eggs, and bread from the grocery store."},
+  {"status": 200, "guess": "unsure", "confidence": 0.5422, "model_score": 0.7468, "style_score": 0.3376, "label": "The result isn't clear. We can't tell for sure whether this was written by a person or with AI tools. If you'd like us to take another look, you can submit an appeal.", "sent": "The weather is really nice today, so I might go for a walk."},
+  {"status": 200, "guess": "unsure", "confidence": 0.4156, "model_score": 0.6645, "style_score": 0.1667, "label": "The result isn't clear. We can't tell for sure whether this was written by a person or with AI tools. If you'd like us to take another look, you can submit an appeal.", "sent": "I really enjoyed watching that movie last night."},
+  {"status": 200, "guess": "unsure", "confidence": 0.48, "model_score": 0.7934, "style_score": 0.1667, "label": "The result isn't clear. We can't tell for sure whether this was written by a person or with AI tools. If you'd like us to take another look, you can submit an appeal.", "sent": "My cat is sleeping on the couch right now."},
+  {"status": 200, "guess": "ai", "confidence": 0.6581, "model_score": 0.7773, "style_score": 0.5389, "label": "We think AI tools may have been used to help write this, but we could be wrong. If this doesn't match how you wrote it, please submit an appeal.", "sent": "Effective time management is essential for achieving both personal and"},
+  {"status": 200, "guess": "ai", "confidence": 0.7266, "model_score": 0.9191, "style_score": 0.534, "label": "We think AI tools may have been used to help write this, but we could be wrong. If this doesn't match how you wrote it, please submit an appeal.", "sent": "Climate change represents one of the most significant challenges facin"},
+  {"status": 200, "guess": "ai", "confidence": 0.6533, "model_score": 0.885, "style_score": 0.4217, "label": "We think AI tools may have been used to help write this, but we could be wrong. If this doesn't match how you wrote it, please submit an appeal.", "sent": "Artificial intelligence has the potential to transform numerous indust"},
+  {"status": 200, "guess": "ai", "confidence": 0.7077, "model_score": 0.899, "style_score": 0.5165, "label": "We think AI tools may have been used to help write this, but we could be wrong. If this doesn't match how you wrote it, please submit an appeal.", "sent": "A balanced diet plays a crucial role in maintaining overall health and"},
+  {"status": 200, "guess": "unsure", "confidence": 0.5085, "model_score": 0.6093, "style_score": 0.4078, "label": "The result isn't clear. We can't tell for sure whether this was written by a person or with AI tools. If you'd like us to take another look, you can submit an appeal.", "sent": "Remote work has become increasingly popular in recent years, offering "}
+]
+```
+
+**Criterion 5: bad input** · produced by `run_eval.py::main` (which POSTs to `app.py::submit`), saved in `results/run_2026-11-05_2008_before.md`, trial 2
+
+```json
+[
+  {"status": 400, "guess": null, "confidence": null, "model_score": null, "style_score": null, "label": null, "sent": "{\"creator_id\": \"eval_bad_missing\"}"},
+  {"status": 400, "guess": null, "confidence": null, "model_score": null, "style_score": null, "label": null, "sent": "(empty text)"},
+  {"status": 200, "guess": "human", "confidence": 0.2099, "model_score": 0.003, "style_score": 0.4167, "label": "Thank you for sharing your writing. It looks like it was written by a real person, and that's great to see.", "sent": "word word word word"},
+  {"status": 200, "guess": "ai", "confidence": 0.747, "model_score": 0.9972, "style_score": 0.4967, "label": "We think AI tools may have been used to help write this, but we could be wrong. If this doesn't match how you wrote it, please submit an appeal.", "sent": "word word word word word word word word word word word word word word "},
+  {"status": 200, "guess": "ai", "confidence": 0.7471, "model_score": 0.9975, "style_score": 0.4967, "label": "We think AI tools may have been used to help write this, but we could be wrong. If this doesn't match how you wrote it, please submit an appeal.", "sent": "word word word word word word word word word word word word word word "},
+  {"status": 200, "guess": "unsure", "confidence": 0.5932, "model_score": 0.6863, "style_score": 0.5, "label": "The result isn't clear. We can't tell for sure whether this was written by a person or with AI tools. If you'd like us to take another look, you can submit an appeal.", "sent": "{\"text\": \"I need to buy milk, eggs, and bread from the store.\"}"},
+  {"status": 200, "guess": "human", "confidence": 0.2103, "model_score": 0.0038, "style_score": 0.4167, "label": "Thank you for sharing your writing. It looks like it was written by a real person, and that's great to see.", "sent": "word word word word "},
+  {"status": 200, "guess": "ai", "confidence": 0.747, "model_score": 0.9972, "style_score": 0.4967, "label": "We think AI tools may have been used to help write this, but we could be wrong. If this doesn't match how you wrote it, please submit an appeal.", "sent": "word word word word word word word word word word word word word word "},
+  {"status": 200, "guess": "unsure", "confidence": 0.6317, "model_score": 0.7634, "style_score": 0.5, "label": "The result isn't clear. We can't tell for sure whether this was written by a person or with AI tools. If you'd like us to take another look, you can submit an appeal.", "sent": "I need to buy milk, eggs, and bread from the grocery store."}
+]
+```
+
+**Criterion 4: appeal path** · produced by a separate test script calling `app.py::appeal` (not `run_eval.py`), trial 1. `log_added` is how many lines `logs/audit.jsonl` grew by.
+
+```json
+[
+  {"case": "valid new appeal 1", "status": 200, "log_added": 1, "body": {"content_id": "c9c2dfd6-ab23-4457-8686-1733f6752bbb", "message": "Thank you. Your appeal has been recorded and your writing is now under review.", "status": "under_review"}},
+  {"case": "repeat appeal 1", "status": 200, "log_added": 0, "body": {"content_id": "c9c2dfd6-ab23-4457-8686-1733f6752bbb", "message": "Your appeal is already being reviewed. Thank you for your patience.", "status": "under_review"}},
+  {"case": "unknown id 1", "status": 404, "log_added": 0, "body": {"error": "content_id_not_found", "message": "We couldn't find that submission. Please check the ID."}},
+  {"case": "empty reasoning", "status": 400, "log_added": 0, "body": {"error": "reasoning_required", "message": "Please tell us why you think this label is wrong."}}
+]
+```
+Of the 11 cases in each trial, these are one of each kind. All 11 matched the expected status and log change in all three trials.
 
 **Diagnoses**
 
