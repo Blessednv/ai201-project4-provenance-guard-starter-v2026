@@ -359,14 +359,54 @@ weakness: a script can rotate creator IDs to get around the limit.
 
 <!-- Choose entries that show the interesting failures, not the ten easiest. -->
 
-```json
+Fifteen entries: twelve decisions and three rejections (two 400s, one 429).
 
+```json
+// EV01
+{"timestamp": "2026-11-05T00:39:49+00:00", "content_id": "f9eed3e3-c8ef-469f-b9d7-3cd10b1443f2", "creator_id": "attacker_EV01", "guess": "human", "model_score": 0.1635, "style_score": 0.4013, "combined_score": 0.2824, "label": "Thank you for sharing your writing. It looks like it was written by a real person, and that's great to see.", "status": "decided"}
+// EV08
+{"timestamp": "2026-11-05T00:39:50+00:00", "content_id": "baf320c1-fce5-45d6-aa8e-ffb1d9112694", "creator_id": "attacker_EV08", "guess": "human", "model_score": 0.2452, "style_score": 0.2391, "combined_score": 0.2422, "label": "Thank you for sharing your writing. It looks like it was written by a real person, and that's great to see.", "status": "decided"}
+// EV07
+{"timestamp": "2026-11-05T00:39:50+00:00", "content_id": "4804441a-b2b4-4d1b-830b-2385d612efb7", "creator_id": "attacker_EV07", "guess": "unsure", "model_score": 0.5862, "style_score": 0.5756, "combined_score": 0.5809, "label": "The result isn't clear. We can't tell for sure whether this was written by a person or with AI tools. If you'd like us to take another look, you can submit an appeal.", "status": "decided"}
+// EV10
+{"timestamp": "2026-11-05T00:39:51+00:00", "content_id": "297f8e4b-9eb0-40f4-beff-908089b98468", "creator_id": "attacker_EV10", "guess": "ai", "model_score": 0.9792, "style_score": 0.4285, "combined_score": 0.7038, "label": "We think AI tools may have been used to help write this, but we could be wrong. If this doesn't match how you wrote it, please submit an appeal.", "status": "decided"}
+// PI01
+{"timestamp": "2026-11-05T00:39:53+00:00", "content_id": "01116fe1-564c-48d1-a768-344a803ad609", "creator_id": "attacker_PI01", "guess": "human", "model_score": 0.4625, "style_score": 0.1347, "combined_score": 0.2986, "label": "Thank you for sharing your writing. It looks like it was written by a real person, and that's great to see.", "status": "decided"}
+// PI02
+{"timestamp": "2026-11-05T00:39:53+00:00", "content_id": "2cc70205-c60f-43c6-9330-8cbea0371013", "creator_id": "attacker_PI02", "guess": "human", "model_score": 0.2044, "style_score": 0.2295, "combined_score": 0.217, "label": "Thank you for sharing your writing. It looks like it was written by a real person, and that's great to see.", "status": "decided"}
+// PI03
+{"timestamp": "2026-11-05T00:39:53+00:00", "content_id": "4b347db4-5110-4885-875b-61387dbe3be7", "creator_id": "attacker_PI03", "guess": "unsure", "model_score": 0.5943, "style_score": 0.2897, "combined_score": 0.442, "label": "The result isn't clear. We can't tell for sure whether this was written by a person or with AI tools. If you'd like us to take another look, you can submit an appeal.", "status": "decided"}
+// MF06
+{"timestamp": "2026-11-05T00:39:55+00:00", "content_id": "66880e94-bccb-46f2-b254-fa6bf60d11c5", "creator_id": "attacker_MF06", "guess": "ai", "model_score": 0.9969, "style_score": 0.3333, "combined_score": 0.6651, "label": "We think AI tools may have been used to help write this, but we could be wrong. If this doesn't match how you wrote it, please submit an appeal.", "status": "decided"}
+// MF08
+{"timestamp": "2026-11-05T00:39:56+00:00", "content_id": "ec9ab212-c315-496d-9cd0-50648d037bcc", "creator_id": "attacker_MF08", "guess": "ai", "model_score": 0.9876, "style_score": 0.3337, "combined_score": 0.6606, "label": "We think AI tools may have been used to help write this, but we could be wrong. If this doesn't match how you wrote it, please submit an appeal.", "status": "decided"}
+// FP03
+{"timestamp": "2026-11-05T00:39:52+00:00", "content_id": "da17da45-6b71-4afc-80a1-b0b58b9ab1d2", "creator_id": "attacker_FP03", "guess": "unsure", "model_score": 0.8051, "style_score": 0.3163, "combined_score": 0.5607, "label": "The result isn't clear. We can't tell for sure whether this was written by a person or with AI tools. If you'd like us to take another look, you can submit an appeal.", "status": "decided"}
+// FP05
+{"timestamp": "2026-11-05T00:39:52+00:00", "content_id": "3a5ba326-76f4-4dfd-8c0d-4ab6194ca965", "creator_id": "attacker_FP05", "guess": "unsure", "model_score": 0.8005, "style_score": 0.4427, "combined_score": 0.6216, "label": "The result isn't clear. We can't tell for sure whether this was written by a person or with AI tools. If you'd like us to take another look, you can submit an appeal.", "status": "decided"}
+// RQ02
+{"timestamp": "2026-11-05T00:39:57+00:00", "content_id": "84ce7bca-0745-48d0-a38c-d818e36fc798", "creator_id": null, "guess": "human", "model_score": 0.2395, "style_score": 0.1667, "combined_score": 0.2031, "label": "Thank you for sharing your writing. It looks like it was written by a real person, and that's great to see.", "status": "decided"}
+// MF01 (400)
+{"timestamp": "2026-11-05T00:39:53+00:00", "creator_id": "attacker_MF01", "event": "rejected", "status": "rejected", "reason": "missing_or_empty_text"}
+// RQ01 (400)
+{"timestamp": "2026-11-05T00:39:56+00:00", "creator_id": "attacker_RQ01", "event": "rejected", "status": "rejected", "reason": "missing_or_empty_text"}
+// 429 from the flood rows (FL01)
+{"timestamp": "2026-11-05T00:39:57+00:00", "creator_id": "attacker_flood", "event": "rejected", "status": "rejected", "reason": "rate_limited", "limit": "5 per 1 minute"}
 ```
 
 **The single worst outcome** — the one I'd least want to explain to a writer
 whose work got caught by it:
 
+**1. MF08, a real writer called "ai".** The input was a person's camping-trip
+writing, repeated up to about 60,000 characters. My service returned 200 with
+guess `ai` (model score 0.99, style score 0.33, combined 0.661, just above my
+0.65 line). A writer would be told their own work looks machine-made.
 
+**2. FP03, an honest writer left under doubt.** The input was careful writing by
+a non-native English speaker. My service returned `unsure` (model score 0.81,
+style score 0.32, combined 0.56), so the writer is told we can't tell whether a
+person or AI wrote it, and their only way out is an appeal. This is the person
+least able to argue back.
 
 ---
 
