@@ -201,6 +201,26 @@ def submit():
     """
     payload = request.get_json(silent=True) or {}
 
+    # ══ UNIT 8, MILESTONE 5: CHECK THE REQUEST BEFORE USING IT ═══════════════
+    # In plain words: this function is the "front door" of the service. Before
+    # this change, the door let almost anything in, and some requests made the
+    # service crash. Now the door checks every request first, and politely
+    # turns away anything that isn't usable, with a short message saying why.
+    # Every turned-away request is also written in the audit log, so a refusal
+    # never disappears without a trace.
+    #
+    # CHECK 1 — is the request the right shape?
+    # A request should be a labelled form with `text` and `creator_id` on it
+    # (programmers call this a "JSON object"). If someone sends something else,
+    # like a bare list, the lines below would crash trying to read it. That is
+    # exactly what happened with attack RQ07. So we stop it here.
+    if not isinstance(payload, dict):
+        audit.log_rejection(creator_id="unknown", reason="invalid_request")
+        return jsonify({
+            "error": "invalid_request",
+            "message": "Please send a JSON object with text and creator_id.",
+        }), 400
+
     # TODO: delete this and build the route.
 
     # Milestone 3, step 3: wire in the first signal.
@@ -221,6 +241,48 @@ def submit():
             "error": "text_required",
             "message": "Please send some writing to check.",
         }), 400
+
+    # CHECK 2 — do we know who sent it?
+    # Every submission must say who it is from (`creator_id`), because the
+    # rate limit, the audit log and the appeal process all depend on knowing
+    # that. If it is missing, blank or not a piece of text, we turn it away.
+    # `log_creator` is just the name we write in the log: the real name if
+    # there is a usable one, otherwise the word "unknown", so that something
+    # odd (like a whole object sent as a name) never gets copied into the log.
+    log_creator = creator_id if isinstance(creator_id, str) and creator_id.strip() else "unknown"
+
+    if not isinstance(creator_id, str) or not creator_id.strip():
+        audit.log_rejection(creator_id=log_creator, reason="creator_id_required")
+        return jsonify({
+            "error": "creator_id_required",
+            "message": "Please tell us who is submitting this writing.",
+        }), 400
+
+    # CHECK 3 — is the writing long enough to judge?
+    # The detector needs a few words to work with. A single letter crashed it
+    # (attack MF02), and very little text can't be judged fairly anyway, so
+    # anything under 20 characters is turned away. We count the text exactly
+    # as sent, spaces included, so text of exactly 20 characters is accepted.
+    if len(text) < 20:
+        audit.log_rejection(creator_id=log_creator, reason="text_too_short")
+        return jsonify({
+            "error": "text_too_short",
+            "message": "Please send at least 20 characters of writing.",
+        }), 400
+
+    # CHECK 4 — is the writing short enough?
+    # The detector only reads roughly the first 400 word-pieces of any text
+    # and ignores the rest, so accepting a huge text would mean pretending to
+    # judge something we mostly never looked at (attacks MF05 and MF08). So
+    # anything over 1,600 characters is turned away. The reply code is 413,
+    # the standard code for "too large".
+    if len(text) > 1600:
+        audit.log_rejection(creator_id=log_creator, reason="text_too_long")
+        return jsonify({
+            "error": "text_too_long",
+            "message": "Please send no more than 1,600 characters at a time.",
+        }), 413
+    # ══ END OF THE NEW CHECKS — the code below is unchanged ═══════════════════
 
     model_score = detector.model_signal(text)
     # Milestone 4: second signal, then combine the two into one score.
