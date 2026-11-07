@@ -644,12 +644,67 @@ I had 3 missed criteria (2, 3 and 5) and 15 broken attacks. They are not 18 sepa
 ## The Improvement
 
 **What I changed:**
+One improvement: I made `submit` in `app.py` check every request *before* any signal sees it. It is one idea, "validate the input", made of four small checks, and I changed nothing else (not the signals, the weights, the thresholds or the labels). The service now refuses, with a short message and a log entry:
+1. a request body that isn't a JSON object, such as a bare list (400, `invalid_request`);
+2. a missing or unusable `creator_id` (400, `creator_id_required`);
+3. text under 20 characters (400, `text_too_short`);
+4. text over 1,600 characters (413, `text_too_long`).
+
+In plain words: before, the service's "front door" let almost anything in, and some requests made it crash. Now the door checks each request first and turns away what can't be judged, politely, and every refusal is written in the audit log. The limits (20 and 1,600 characters) are the ones my own criterion 5 and my Unit 7 design already promised.
 
 **Which diagnosis pointed at it:**
+Problem 2 in my diagnoses, "my route trusts whatever arrives". It explained criterion 5 (four bad inputs accepted) and two of the broken attacks (MF02 and RQ07 crashed with a 500). Before running anything, I predicted that six attack rows would change (MF02, RQ07, MF08, MF05, RQ02, RQ06), that broken attacks would fall from 15 to 12, and that criterion 5 would go from 4/8 to 8/8. I chose this over reweighting or moving a threshold because its effect is exact and has no hidden cost. The honest limit: it fixes the smaller problem and leaves Problem 1 (signal one) open, which is behind 13 of the 15 broken attacks and criteria 2 and 3.
 
 ### Attack Run — After
 
 <!-- Same format. `run_attacks.py --label after` -->
+
+Same 56 attacks, unchanged, run with `python run_attacks.py --set attack_set --label after`. Results: `results/attack_run_2026-11-06_2056_after.md`. The before run is `results/attack_run_2026-11-04_1939.md`.
+
+**By family**
+
+| Family | Before: BROKE / HELD | After: BROKE / HELD |
+|---|---|---|
+| evasion (10) | 9 / 1 | 9 / 1 |
+| false positive (8) | 0 / 8 | 0 / 8 |
+| prompt injection (6) | 3 / 3 | 3 / 3 |
+| malformed (20) | 3 / 17 | 0 / 20 |
+| flood (12) | 0 / 12 | 0 / 12 |
+| **Total (56)** | **15 / 41** | **12 / 44** |
+
+**The six rows that changed** (the other 50 are identical in status and guess):
+
+| Attack | Before | After |
+|---|---|---|
+| MF02, one letter | 500 crash | 400 |
+| RQ07, JSON array body | 500 crash | 400 |
+| MF08, 60,000 characters | 200, "ai" | 413 |
+| MF05, 4,000 letters | 200, unsure | 413 |
+| RQ02, no `creator_id` | 200, human | 400 |
+| RQ06, `creator_id` is an object | 200, human | 400 |
+
+500 errors went from 2 to 0.
+
+**My five criteria** (`run_eval.py --label after`, three trials each, identical every time):
+
+| # | Target | Before | After |
+|---|---|---|---|
+| 1. My writing flagged "ai" | ≤ 1 of 10 | 0/10 · MET | 0/10 · MET |
+| 2. Score gap | ≥ 0.3 | 0.134 · MISSED | 0.134 · MISSED |
+| 3. Label coverage | all 3 labels | no "human" · MISSED | no "human" · MISSED |
+| 4. Appeal path | 11 of 11 | 11/11 · MET | not re-run (the change doesn't touch `/appeal`) |
+| 5. Bad input | 8 of 8 + normal | 4/8 · MISSED | 8/8 + normal 200 · codes MET |
+
+For criterion 5, every status code now matches. One part of that criterion, "rejected inputs add no audit log entry", conflicts with the Milestone 1 requirement to log refusals, so I kept logging them and noted the conflict instead of rewriting the criterion.
+
+**New audit entries from the after run** (the refusals are logged, with fewer fields than a decision):
+
+```json
+{"timestamp": "2026-11-07T01:56:06+00:00", "creator_id": "attacker_MF02", "event": "rejected", "status": "rejected", "reason": "text_too_short"}
+{"timestamp": "2026-11-07T01:56:07+00:00", "creator_id": "attacker_MF08", "event": "rejected", "status": "rejected", "reason": "text_too_long"}
+{"timestamp": "2026-11-07T01:56:07+00:00", "creator_id": "unknown", "event": "rejected", "status": "rejected", "reason": "creator_id_required"}
+{"timestamp": "2026-11-07T01:56:07+00:00", "creator_id": "unknown", "event": "rejected", "status": "rejected", "reason": "invalid_request"}
+```
 
 
 
@@ -657,6 +712,12 @@ I had 3 missed criteria (2, 3 and 5) and 15 broken attacks. They are not 18 sepa
 
 <!-- Widening the unsure band usually fixes one problem and creates another.
      Reporting that trade honestly is worth full credit. -->
+
+Yes, but only for the smaller of my two problems. The change stopped my service from crashing: two attacks that used to make it fail with an error now get a polite "that isn't valid" message, and the number of broken attacks fell from 15 to 12. My bad-input criterion went from 4 of 8 handled correctly to all 8. It did nothing for the bigger problem. All 12 attacks that still beat me are AI text with a disguise or a fake instruction, and my three criteria about telling human writing from AI text (scores too close together, no "human" label) came out exactly the same as before.
+
+I know this because I ran the exact same 56 attacks and the same five criteria before and after, and compared them line by line. Only the six rows I predicted changed, 50 of 56 were identical, and the scores in criteria 1 to 3 matched to the third decimal place. So the change did what I wanted and nothing else.
+
+It also has two honest costs. First, one attack now counts as "held" only because I refuse very long texts, not because my detector got smarter: a repeated paragraph under 1,600 characters would still be wrongly called AI. Second, the 20-character minimum means a real person who submits a very short piece, like "I love my cat.", is turned away without an answer. I think that is a fair price, because those texts are too short to judge fairly, but it is a trade and not a free win.
 
 
 
@@ -671,12 +732,22 @@ I had 3 missed criteria (2, 3 and 5) and 15 broken attacks. They are not 18 sepa
 signal weights or label thresholds in force at the time. Changing config.py
 later makes older entries harder to interpret.
 
+**What I'd do next, and why I stopped:**
 
+*Still beating me:* 12 attacks (the 9 evasion attacks, EV01 to EV09, and the 3 prompt injections, PI01 to PI03), and 2 criteria, the score gap (criterion 2) and label coverage (criterion 3). They are all one problem: my first signal, the GPT-2 predictability score, reads plain writing as machine-made and odd or short text as human, so plain human writing and plain AI text both land in the middle.
+
+*What I'd fix next:* the first signal's calibration. It turns "how predictable" into a score using a fixed midpoint (a perplexity of 45), and my own plain sentences score 0.66 to 0.79 on it, nearly as high as the AI texts. Shifting that midpoint is a single number, and I would re-run the same 56 attacks and five criteria to see its effect, exactly as I did for this change. I have not tested it, so I can't say yet how far it would move the gap, only that it targets the diagnosed cause.
+
+*Why I stopped here:* the milestone asks for one change that can be measured. Changing the first signal as well would have made it impossible to tell which change moved which number. I chose the route fix first because its effect was exact and had no side effects on scoring.
+
+Two smaller loose ends: criterion 4 (appeals) was not re-run after the change, because the change doesn't touch `/appeal`; and criterion 5 still conflicts with my own audit-log rule, which I recorded in the diagnosis and left as it is.
 
 **The trade I'd make if this ran for real:**
 
 <!-- Two sentences. Fewer wrong accusations means more AI text getting through.
      Say which way you'd go and WHO PAYS FOR IT. -->
+
+I would keep the bar for calling something "AI" high and accept that more AI-written text slips through, because wrongly accusing a real writer costs that person far more than a missed detection costs the site. The people who pay are the honest writers in the middle: today all ten of my own pieces came back "unsure", so every one of them would be told "we can't tell" and have to appeal to clear their name, and that cost lands on them, not on me.
 
 
 
