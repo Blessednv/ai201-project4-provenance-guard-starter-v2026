@@ -260,6 +260,24 @@ $ curl "http://127.0.0.1:5000/log?limit=5"
 - *What came back:* The AI wrote me example texts, and another window gave me a different pair. Before using them, I was asked who wrote the "formal human" one, because it only counts as human if a person wrote it.
 - *What I changed:* I used the formal text that I wrote myself, so it was truly human. When the edited AI text scored like human writing, I decided not to change my rule just to fix four examples, and wrote it down as a known weakness instead.
 
+**Moment 5: the rate-limit numbers**
+
+- *What I asked for:* I asked the AI to suggest limits for how many submissions one writer can send.
+- *What came back:* It suggested 5 per minute and 50 per day, and explained why: a real writer rarely sends more than a few in a minute, and a script mapping my thresholds needs hundreds.
+- *What I changed:* I accepted those numbers, and wrote the reasoning in my README, including the weakness the AI pointed out, that someone can rotate creator IDs to get around a per-creator limit.
+
+**Moment 6: a judgment call it changed its mind on**
+
+- *What I asked for:* I asked how to mark the evasion attacks where my system said "unsure" on AI text.
+- *What came back:* First it suggested "held" because "unsure" isn't the exact word "human". Then it changed its answer: the milestone says the attack is to slip past the detector, and "unsure" lets AI text through.
+- *What I changed:* I marked them BROKE and wrote the reason in my README, and I did not tune the marks to look better.
+
+**Moment 7: checking the diagnoses**
+
+- *What I asked for:* I asked the AI to find the cause of each broken attack.
+- *What came back:* It ran my own scoring functions on a plain AI paragraph and on each attack. One result surprised me: the typo attack was aimed at my second signal, but my first signal was what broke. It also made a counting slip in a summary line, which I caught and it fixed.
+- *What I changed:* I asked for line numbers so I could check its claims against my results files, and I wrote the diagnoses in plain words so someone who doesn't program can follow them.
+
 ---
 
 ## Stretch Features
