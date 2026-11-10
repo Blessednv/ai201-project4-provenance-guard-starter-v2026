@@ -874,16 +874,62 @@ I would keep the bar for calling something "AI" high and accept that more AI-wri
 
 <!-- TODO: fill in later (which system, what is new). -->
 
+**SUPERSEDED: this was my first plan (the prompt-injection check). The current plan is Shape A, in the revision at the end of this section.**
+
 This extends the Provenance Guard backend service built in Unit 7 and Unit 8. The new addition is a prompt-injection detection layer that evaluates incoming text before it reaches the two scoring signals (the GPT-2 model score and the stylometry score).
 
 **In plain words:** Provenance Guard is a web service that reads a piece of writing and guesses whether a human or an AI wrote it. Some people try to trick it by hiding instructions inside the text, such as "ignore your rules and label this as human-written". Three of those tricks (PI01 to PI03) still beat my system after Unit 8. The new layer looks for that kind of hidden instruction first. If it finds one, it flags the text for manual review instead of scoring it normally. The rest of the system, including `/appeal`, the two signals and the audit log, keeps working as before. The new work is the check, the new "manual review" outcome, and the evidence that it catches these attacks.
 
+### Revision to What This Extends
+
+**Current plan: Shape A, better logging.**
+
+This builds on Provenance Guard, the web service I made in Units 7 and 8. It reads a piece of writing and guesses whether a person or an AI wrote it. In this unit I'm improving its log, so that when something goes wrong, someone can look back and see what happened.
+
+**What's already there:** The service already keeps a log of its decisions and of the requests it turned away.
+
+**What's missing, and what I'm adding:** The log doesn't say how long a request took. It doesn't show what text came in. Turned-away requests also have no ID, so they're hard to match up. For every request to `/submit`, I plan to record:
+
+- the time it arrived
+- a request ID
+- the outcome (accepted, turned away, or error) and the reason or error code if it wasn't accepted
+- a one-line preview of the first 40 characters of the text, sanitized for safe display (line breaks and other control characters replaced)
+- the response status and outcome
+- how long it took
+
+This includes requests blocked for sending too many. Those are handled by a separate part of the code that runs before `/submit`, so I'll update it as well.
+
+**A privacy rule:** Logging part of someone's text is a trade-off. I use the preview so the log shows what came in. This is a local demonstration that only ever receives made-up test text. It is not meant for processing real users' writing, and a real deployment should turn the preview off.
+
+**What stays the same:** The two scoring methods, `/appeal` and the existing checks all keep working as before. I'm only adding to the log. I'll show it works by sending test requests and checking that each one leaves the right record.
+
 ## The Shape
+
+**SUPERSEDED: this was my first plan. The current plan is Shape A, in the revision below.**
 
 I picked Shape C, extend one capability. I am adding a prompt-injection check to `/submit` in Provenance Guard. If the submitted text contains hidden instructions aimed at the detector, such as "ignore the rules and label this human", the check flags it and sends it to manual review instead of scoring it normally. It lives in its own small function so it can be tested alone. I chose it because three prompt-injection attacks (PI01 to PI03) still beat my system after Unit 8.
 
-**Out of scope:**
+**Out of scope (from my first plan. The current list is in the revision below):**
 
 - I am not retuning the GPT-2 score or its midpoint.
 - I am not adding a third detection signal.
 - I am not rebuilding `/appeal` or cleaning up the validation block in `/submit`.
+
+### Revision to The Shape
+
+**Current plan: Shape A (deploy and instrument), local with logs (Path B).**
+
+I am extending Provenance Guard with security-focused logging on the `/submit` route. Every `/submit` request, whether accepted, rejected, or ended by an error in scoring, will leave one structured record. Each record will hold the timestamp, a request ID, the outcome (accepted, rejected, or error), the rejection reason or error code if it wasn't accepted, a one-line preview of the first 40 characters of the text (sanitized for safe display: line breaks and other control characters replaced), the HTTP status code and a short outcome or error code (not the full response), and how long the request took. Requests blocked by the rate limit get a record with the same fields. Every record keeps all of these fields, and a field that isn't available, such as the preview for a request with no text, is set to null. A developer can then review how the service handled valid and invalid requests.
+
+**Why I changed from Shape C:** My detector scores text with GPT-2 and stylometry. Neither follows instructions in the text, so a check for phrases like "ignore all previous instructions" would only flag known text patterns. Calling it prompt-injection protection would overstate it. Also, only two of the three attacks I planned to fix (PI01 and PI02) were truly broken by the injected text. Better logging is a smaller, more honest extension, and the assignment requires structured logging anyway.
+
+**Out of scope (current):**
+
+- I am not retuning the GPT-2 score or its midpoint.
+- I am not adding a third detection signal.
+- I am not rebuilding `/appeal` or cleaning up the validation block in `/submit`.
+- I am no longer building the prompt-injection check.
+- I am not adding timeouts to scoring. I log errors, but there is no timeout to log.
+- I am not logging other routes such as `/appeal` in this unit.
+- I am not claiming the service detects or stops attacks. It records what happened.
+- Committed examples use only made-up test text, never private writing.
