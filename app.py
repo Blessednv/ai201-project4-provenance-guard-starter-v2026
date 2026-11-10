@@ -24,6 +24,7 @@ Routes:
     GET  /health      is the service up, and is the model loaded
 """
 
+import time  # CAPSTONE: a stopwatch for timing successful /submit handler runs
 import uuid
 
 from flask import Flask, jsonify, request
@@ -199,6 +200,11 @@ def submit():
     what should this do when `text` is missing, empty, or enormous? A crash on
     a malformed input is one of the most common real failures there is.
     """
+    # CAPSTONE: press "start" on the stopwatch when our /submit code begins.
+    # We read it again just before the log line is written, to see how long
+    # our code spent working on this submission.
+    start = time.perf_counter()
+
     payload = request.get_json(silent=True) or {}
 
     # ══ UNIT 8, MILESTONE 5: CHECK THE REQUEST BEFORE USING IT ═══════════════
@@ -215,7 +221,12 @@ def submit():
     # like a bare list, the lines below would crash trying to read it. That is
     # exactly what happened with attack RQ07. So we stop it here.
     if not isinstance(payload, dict):
-        audit.log_rejection(creator_id="unknown", reason="invalid_request")
+        audit.log_rejection(
+            creator_id="unknown",
+            reason="invalid_request",
+            # CAPSTONE: how long our /submit code ran before turning this away
+            duration_ms=round((time.perf_counter() - start) * 1000),
+        )
         return jsonify({
             "error": "invalid_request",
             "message": "Please send a JSON object with text and creator_id.",
@@ -236,6 +247,8 @@ def submit():
         audit.log_rejection(
             creator_id=creator_id or "unknown",
             reason="missing_or_empty_text",
+            # CAPSTONE: how long our /submit code ran before turning this away
+            duration_ms=round((time.perf_counter() - start) * 1000),
         )
         return jsonify({
             "error": "text_required",
@@ -252,7 +265,12 @@ def submit():
     log_creator = creator_id if isinstance(creator_id, str) and creator_id.strip() else "unknown"
 
     if not isinstance(creator_id, str) or not creator_id.strip():
-        audit.log_rejection(creator_id=log_creator, reason="creator_id_required")
+        audit.log_rejection(
+            creator_id=log_creator,
+            reason="creator_id_required",
+            # CAPSTONE: how long our /submit code ran before turning this away
+            duration_ms=round((time.perf_counter() - start) * 1000),
+        )
         return jsonify({
             "error": "creator_id_required",
             "message": "Please tell us who is submitting this writing.",
@@ -264,7 +282,12 @@ def submit():
     # anything under 20 characters is turned away. We count the text exactly
     # as sent, spaces included, so text of exactly 20 characters is accepted.
     if len(text) < 20:
-        audit.log_rejection(creator_id=log_creator, reason="text_too_short")
+        audit.log_rejection(
+            creator_id=log_creator,
+            reason="text_too_short",
+            # CAPSTONE: how long our /submit code ran before turning this away
+            duration_ms=round((time.perf_counter() - start) * 1000),
+        )
         return jsonify({
             "error": "text_too_short",
             "message": "Please send at least 20 characters of writing.",
@@ -277,7 +300,12 @@ def submit():
     # anything over 1,600 characters is turned away. The reply code is 413,
     # the standard code for "too large".
     if len(text) > 1600:
-        audit.log_rejection(creator_id=log_creator, reason="text_too_long")
+        audit.log_rejection(
+            creator_id=log_creator,
+            reason="text_too_long",
+            # CAPSTONE: how long our /submit code ran before turning this away
+            duration_ms=round((time.perf_counter() - start) * 1000),
+        )
         return jsonify({
             "error": "text_too_long",
             "message": "Please send no more than 1,600 characters at a time.",
@@ -302,6 +330,13 @@ def submit():
         style_score=style_score,
         combined_score=combined_score,
         status="decided",
+        # CAPSTONE: "stop" the stopwatch and save the time our /submit code
+        # spent on this submission, up to the moment just before this log line
+        # is written. This is not the full round trip: it leaves out the time
+        # Flask takes to receive the request and to send the reply.
+        # We take the time now minus the start time (in seconds), multiply by
+        # 1000 to get milliseconds, and round it to a whole number.
+        duration_ms=round((time.perf_counter() - start) * 1000),
     )
 
     return jsonify({
