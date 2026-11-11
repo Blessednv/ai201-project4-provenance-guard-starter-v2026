@@ -101,13 +101,34 @@ if config.RATE_LIMITING_ENABLED:
 
         ⚠️ An attack that shows up only as an absence is one you'll never find.
         """
+        # CAPSTONE: press "start" on a stopwatch as soon as this handler runs.
+        # (The /submit stopwatch never started, because this request was
+        # stopped before /submit began.)
+        start = time.perf_counter()
+
         payload = request.get_json(silent=True)
         if not isinstance(payload, dict):
             payload = {}
+        # CAPSTONE: pull out the text, if there is any, for the preview below.
+        text = payload.get("text")
         audit.log_rejection(
             creator_id=payload.get("creator_id", "unknown"),
             reason="rate_limited",
             limit=str(exc.description),
+            # CAPSTONE: this request was stopped before /submit ran, so it
+            # gets its own ticket number here.
+            request_id=str(uuid.uuid4()),
+            # CAPSTONE: the number we send back (429 means "too many
+            # requests") and one plain word for what happened.
+            http_status=429,
+            outcome="rejected",
+            # CAPSTONE: the first 40 characters of what came in, only if it
+            # really is text. Otherwise null.
+            input_preview=make_preview(text) if isinstance(text, str) else None,
+            # CAPSTONE: how long THIS handler spent on the rejection, up to
+            # just before this log line is written. It is not the full round
+            # trip, and not the same thing /submit's duration measures.
+            duration_ms=round((time.perf_counter() - start) * 1000),
         )
         return jsonify({
             "error": "rate_limited",
