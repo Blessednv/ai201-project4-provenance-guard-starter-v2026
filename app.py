@@ -249,6 +249,10 @@ def submit():
             creator_id="unknown",
             reason="invalid_request",
             request_id=request_id,  # CAPSTONE: the ticket number for this visit
+            # CAPSTONE: the number we send back (400 means "bad request")
+            # and one plain word for what happened.
+            http_status=400,
+            outcome="rejected",
             # CAPSTONE: there is no usable text in this kind of request, so the
             # preview stays empty (null). The field is still written, so every
             # record has the same fields.
@@ -277,6 +281,10 @@ def submit():
             creator_id=creator_id or "unknown",
             reason="missing_or_empty_text",
             request_id=request_id,  # CAPSTONE: the ticket number for this visit
+            # CAPSTONE: the number we send back (400 means "bad request")
+            # and one plain word for what happened.
+            http_status=400,
+            outcome="rejected",
             # CAPSTONE: here `text` might be missing, a number, a list or an
             # empty string. We only make a preview when it really is text.
             # Otherwise we write null, so the field is still there.
@@ -303,6 +311,10 @@ def submit():
             creator_id=log_creator,
             reason="creator_id_required",
             request_id=request_id,  # CAPSTONE: the ticket number for this visit
+            # CAPSTONE: the number we send back (400 means "bad request")
+            # and one plain word for what happened.
+            http_status=400,
+            outcome="rejected",
             # CAPSTONE: the first 40 characters of what came in, cleaned up so
             # it stays on one line. Safe here because the text check above has
             # already confirmed that `text` is real, non-empty text.
@@ -325,6 +337,10 @@ def submit():
             creator_id=log_creator,
             reason="text_too_short",
             request_id=request_id,  # CAPSTONE: the ticket number for this visit
+            # CAPSTONE: the number we send back (400 means "bad request")
+            # and one plain word for what happened.
+            http_status=400,
+            outcome="rejected",
             # CAPSTONE: the first 40 characters of what came in, cleaned up so
             # it stays on one line. Safe here because the checks above have
             # already confirmed that `text` is real text.
@@ -348,6 +364,10 @@ def submit():
             creator_id=log_creator,
             reason="text_too_long",
             request_id=request_id,  # CAPSTONE: the ticket number for this visit
+            # CAPSTONE: the number we send back (413 means "too large")
+            # and one plain word for what happened.
+            http_status=413,
+            outcome="rejected",
             # CAPSTONE: the first 40 characters of what came in, cleaned up so
             # it stays on one line. Only 40 are kept, so a huge text does not
             # fill the log. Safe because `text` is confirmed to be real text.
@@ -380,6 +400,10 @@ def submit():
         combined_score=combined_score,
         status="decided",
         request_id=request_id,  # CAPSTONE: the ticket number for this visit
+        # CAPSTONE: the number we send back to the caller (200 means "fine")
+        # and one plain word for what happened to this request.
+        http_status=200,
+        outcome="accepted",
         # CAPSTONE: the first 40 characters of what came in, cleaned up so it
         # stays on one line. We call it only here, after the checks above have
         # confirmed that `text` is real text.
