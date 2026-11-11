@@ -249,6 +249,10 @@ def submit():
             creator_id="unknown",
             reason="invalid_request",
             request_id=request_id,  # CAPSTONE: the ticket number for this visit
+            # CAPSTONE: there is no usable text in this kind of request, so the
+            # preview stays empty (null). The field is still written, so every
+            # record has the same fields.
+            input_preview=None,
             # CAPSTONE: how long our /submit code ran before turning this away
             duration_ms=round((time.perf_counter() - start) * 1000),
         )
@@ -273,6 +277,10 @@ def submit():
             creator_id=creator_id or "unknown",
             reason="missing_or_empty_text",
             request_id=request_id,  # CAPSTONE: the ticket number for this visit
+            # CAPSTONE: here `text` might be missing, a number, a list or an
+            # empty string. We only make a preview when it really is text.
+            # Otherwise we write null, so the field is still there.
+            input_preview=make_preview(text) if isinstance(text, str) else None,
             # CAPSTONE: how long our /submit code ran before turning this away
             duration_ms=round((time.perf_counter() - start) * 1000),
         )
@@ -295,6 +303,10 @@ def submit():
             creator_id=log_creator,
             reason="creator_id_required",
             request_id=request_id,  # CAPSTONE: the ticket number for this visit
+            # CAPSTONE: the first 40 characters of what came in, cleaned up so
+            # it stays on one line. Safe here because the text check above has
+            # already confirmed that `text` is real, non-empty text.
+            input_preview=make_preview(text),
             # CAPSTONE: how long our /submit code ran before turning this away
             duration_ms=round((time.perf_counter() - start) * 1000),
         )
@@ -313,6 +325,10 @@ def submit():
             creator_id=log_creator,
             reason="text_too_short",
             request_id=request_id,  # CAPSTONE: the ticket number for this visit
+            # CAPSTONE: the first 40 characters of what came in, cleaned up so
+            # it stays on one line. Safe here because the checks above have
+            # already confirmed that `text` is real text.
+            input_preview=make_preview(text),
             # CAPSTONE: how long our /submit code ran before turning this away
             duration_ms=round((time.perf_counter() - start) * 1000),
         )
@@ -332,6 +348,10 @@ def submit():
             creator_id=log_creator,
             reason="text_too_long",
             request_id=request_id,  # CAPSTONE: the ticket number for this visit
+            # CAPSTONE: the first 40 characters of what came in, cleaned up so
+            # it stays on one line. Only 40 are kept, so a huge text does not
+            # fill the log. Safe because `text` is confirmed to be real text.
+            input_preview=make_preview(text),
             # CAPSTONE: how long our /submit code ran before turning this away
             duration_ms=round((time.perf_counter() - start) * 1000),
         )
