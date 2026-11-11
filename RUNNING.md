@@ -394,5 +394,19 @@ with normal ones.
   can send 5 requests a minute and 50 a day. Wait a minute, or use a different
   `creator_id`.
 
-**Tested from a clean checkout:** _not tested yet. I will fill this in after I
-follow these steps in a fresh folder._
+**Tested from a clean checkout:** Yes, on 2026-11-11, on a Mac with Python
+3.11.14. I cloned the repo into a new folder, created a new `.venv`, installed
+the requirements, and ran `python detector.py`, `python test.py` (9 passed, 0
+failed) and `python app.py`. Then I sent the test request from "Try it" above.
+The reply had the same scores as my original copy (model score 0.2514, style
+score 0.3448), and the new log line had `request_id`, `input_preview`,
+`http_status`, `outcome` and `duration_ms`. That test covered one successful
+request only. I did not repeat the rejection, rate-limit or scoring-error cases
+in the fresh copy.
+
+**Two things I noticed:**
+1. A NumPy warning (`Failed to initialize NumPy: _ARRAY_API not found`) appeared
+   while running `python detector.py` and `python test.py`. The model score and
+   the service check still completed. I did not investigate the cause.
+2. The GPT-2 model was already in my computer's cache, so I did **not** verify
+   the 550 MB download from scratch.
