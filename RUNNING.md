@@ -1,5 +1,8 @@
 # Running Provenance Guard
 
+> **Unit 9 capstone: the short version is at the bottom of this file, under
+> "Capstone: local run (Path B)".**
+
 Everything about how the starter works.
 
 This is a **web service**. It runs on your machine and you talk to it with
@@ -306,3 +309,90 @@ is evidence, and the entries you paste into your README are what unit 8 grades.
 
 **Do not delete and recreate this repository.** You submit the same URL both
 units.
+
+---
+
+## Capstone: local run (Path B)
+
+This is how to run Provenance Guard on your own computer for the Unit 9
+capstone. I chose to run it locally and not on a hosted website, because the
+GPT-2 model is about 550 MB and a free host only gives 512 MB of memory. It
+simply would not fit (see "This project will not fit a free host" above).
+
+### What you need before you start
+- **Python 3.11, 3.12 or 3.13.** Not 3.14. I tested it on Python 3.11.14 on a Mac.
+- **The packages in `requirements.txt`.** That is Flask, Flask-Limiter, requests,
+  transformers, torch, gunicorn and certifi. Each one has a version range, and
+  `pip install` takes care of it.
+- **The GPT-2 model, about 550 MB.** You download it once with
+  `python detector.py`. It is saved in your computer's cache, not inside this
+  repository.
+- **About 9 GB of free disk space, and 4 GB of memory recommended.** Most of the
+  disk space is PyTorch. `python test.py` checks this for you.
+- **No hosted AI service, API key or account is needed.** The one thing that uses
+  the internet is the model, which downloads once with `python detector.py`.
+  After that, the service runs without it.
+
+### Set it up (you only do this once)
+```bash
+git clone https://github.com/Blessednv/ai201-project4-provenance-guard-starter-v2026.git
+cd ai201-project4-provenance-guard-starter-v2026
+python3.11 -m venv .venv      # or python3.12 / python3.13; not 3.14
+source .venv/bin/activate
+pip install -r requirements.txt
+python detector.py        # downloads the model, about 550 MB
+python test.py            # should finish with "9 passed, 0 failed"
+```
+
+### Start it
+```bash
+python app.py
+```
+You should see `Provenance Guard on http://127.0.0.1:5000`. Leave this terminal
+open. The service is running as long as it stays open.
+
+### Try it
+Open a second terminal and send it a short made-up text. Please use only
+made-up text, never real writing, because the log keeps the first 40 characters.
+```bash
+curl -X POST http://127.0.0.1:5000/submit \
+  -H "Content-Type: application/json" \
+  -d '{"text":"Today I tested the service with a short sample. It should return a score and a label.","creator_id":"my_first_test"}'
+```
+You get back an ID, a guess (human, AI or unsure), a confidence number, a
+message for the writer, and the two scores behind it.
+
+The first request after you start the service can take 10 seconds or more,
+because that is when the model loads into memory. That is normal. One later
+request I timed took about 70 milliseconds. That is only an example, not a
+promise for every request. The timings I measured properly are in the README
+under "What It Costs".
+
+### Where to see what it did
+A request to `/submit` adds one line to `logs/audit.jsonl` when it is accepted,
+turned away for bad input, blocked by the rate limit, or stopped by an error
+while scoring. (If writing the log itself fails, there will be no line.) To see
+the last three:
+```bash
+tail -n 3 logs/audit.jsonl
+```
+Each line has: the time, a `request_id` (a ticket number for that one visit),
+`input_preview` (the first 40 characters of the text, on one line),
+`http_status` (the number the service replied with, like 200 or 400),
+`outcome` (`accepted`, `rejected` or `error`) and `duration_ms` (how long our
+code spent on that request, in thousandths of a second). It counts the time
+inside the part of the service that handles the request, up to just before the
+log line is written. It does not include the time to send the request over the
+network or to send the reply. Requests blocked by the rate limit are timed by a
+different part of the service, so their numbers are not directly comparable
+with normal ones.
+
+### If something goes wrong
+- **"Address already in use"**: an old copy of the service is still running, or
+  macOS AirPlay Receiver is using port 5000. Stop the old copy and try again.
+- **Requests suddenly get a 429 reply**: rate limiting is on. Each `creator_id`
+  can send 5 requests a minute and 50 a day. Wait a minute, or use a different
+  `creator_id`.
+
+**Tested from a clean checkout:** _not tested yet. I will fill this in after I
+follow these steps in a fresh folder._
