@@ -112,6 +112,25 @@ def log_rejection(creator_id: str, reason: str, **extra) -> dict:
     })
 
 
+def log_error(creator_id: str, reason: str, **extra) -> dict:
+    """
+    CAPSTONE: record a request that failed because OUR code crashed, not
+    because the caller sent something wrong.
+
+    log_rejection() always labels its record "rejected", which would be
+    wrong here: a crash in scoring is an error, not a refused request. So
+    this function writes the same kind of line, labelled "error".
+    """
+    return _append({
+        "timestamp": _now(),
+        "creator_id": creator_id,
+        "event": "error",
+        "status": "error",
+        "reason": reason,
+        **extra,
+    })
+
+
 def _append(entry: dict) -> dict:
     config.LOG_DIR.mkdir(parents=True, exist_ok=True)
     line = json.dumps(entry, ensure_ascii=False)

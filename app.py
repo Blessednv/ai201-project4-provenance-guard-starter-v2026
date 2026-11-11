@@ -402,12 +402,36 @@ def submit():
         }), 413
     # ══ END OF THE NEW CHECKS — the code below is unchanged ═══════════════════
 
-    model_score = detector.model_signal(text)
-    # Milestone 4: second signal, then combine the two into one score.
-    style_score = stylometry.style_signal(text)
-    combined_score = scoring.combine_signals(model_score, style_score)
-    # Milestone 5: turn the combined score into a guess and a label.
-    guess, label = scoring.score_to_label(combined_score)
+    # CAPSTONE: the safety net. If any of the four scoring steps crashes, we
+    # catch it here, write an "error" line in the log, and send a short,
+    # clean reply. It wraps ONLY the scoring steps, so a problem with
+    # writing the log later can't be mistaken for a scoring failure.
+    try:
+        model_score = detector.model_signal(text)
+        # Milestone 4: second signal, then combine the two into one score.
+        style_score = stylometry.style_signal(text)
+        combined_score = scoring.combine_signals(model_score, style_score)
+        # Milestone 5: turn the combined score into a guess and a label.
+        guess, label = scoring.score_to_label(combined_score)
+    except Exception as exc:
+        audit.log_error(
+            creator_id=creator_id,
+            reason="scoring_error",
+            request_id=request_id,
+            # CAPSTONE: 500 means "something broke on our side".
+            http_status=500,
+            outcome="error",
+            # CAPSTONE: only the TYPE of the error, like "RuntimeError", not
+            # the full message, so no odd details end up in the log.
+            error_type=type(exc).__name__,
+            input_preview=make_preview(text),
+            duration_ms=round((time.perf_counter() - start) * 1000),
+        )
+        return jsonify({
+            "error": "scoring_error",
+            "message": "Something went wrong on our side while checking this writing. Please try again later.",
+        }), 500
+
     content_id = str(uuid.uuid4())
 
     # Milestone 3, step 4: write this submission to the audit log.
