@@ -24,7 +24,7 @@ Routes:
     GET  /health      is the service up, and is the model loaded
 """
 
-import time  # CAPSTONE: a stopwatch for timing successful /submit handler runs
+import time  # CAPSTONE: a stopwatch for timing /submit handler runs
 import uuid
 
 from flask import Flask, jsonify, request
@@ -151,6 +151,25 @@ def health():
 
 # ── YOU BUILD THIS ────────────────────────────────────────────────────────────
 
+def make_preview(text, limit=40):
+    """
+    CAPSTONE: make a short, safe-to-read preview of the submitted text, for
+    the audit log. It is NOT anonymised: a name inside the first 40
+    characters would still show up, so only made-up test text is used.
+
+    Step 1: text[:limit] keeps only the first 40 characters, so we never
+    store a whole essay in the log.
+
+    Step 2: we go through those characters one at a time. If a character can
+    be displayed normally (a letter, number, space or punctuation mark) we
+    keep it. If it can't (a line break, a tab, an invisible character) we
+    swap it for a plain space. That keeps the preview on one readable line.
+
+    Step 3: "".join(...) glues the characters back into one short piece of text.
+    """
+    return "".join(ch if ch.isprintable() else " " for ch in text[:limit])
+
+
 @app.post("/submit")
 @limiter.limit(f"{config.RATE_LIMIT_PER_MINUTE}/minute;{config.RATE_LIMIT_PER_DAY}/day")
 def submit():
@@ -205,6 +224,11 @@ def submit():
     # our code spent working on this submission.
     start = time.perf_counter()
 
+    # CAPSTONE: give this visit its own unique ticket number. Every log line
+    # for this request carries it, so we can find it later. It is separate
+    # from content_id, which labels a submission that can be appealed.
+    request_id = str(uuid.uuid4())
+
     payload = request.get_json(silent=True) or {}
 
     # ══ UNIT 8, MILESTONE 5: CHECK THE REQUEST BEFORE USING IT ═══════════════
@@ -224,6 +248,7 @@ def submit():
         audit.log_rejection(
             creator_id="unknown",
             reason="invalid_request",
+            request_id=request_id,  # CAPSTONE: the ticket number for this visit
             # CAPSTONE: how long our /submit code ran before turning this away
             duration_ms=round((time.perf_counter() - start) * 1000),
         )
@@ -247,6 +272,7 @@ def submit():
         audit.log_rejection(
             creator_id=creator_id or "unknown",
             reason="missing_or_empty_text",
+            request_id=request_id,  # CAPSTONE: the ticket number for this visit
             # CAPSTONE: how long our /submit code ran before turning this away
             duration_ms=round((time.perf_counter() - start) * 1000),
         )
@@ -268,6 +294,7 @@ def submit():
         audit.log_rejection(
             creator_id=log_creator,
             reason="creator_id_required",
+            request_id=request_id,  # CAPSTONE: the ticket number for this visit
             # CAPSTONE: how long our /submit code ran before turning this away
             duration_ms=round((time.perf_counter() - start) * 1000),
         )
@@ -285,6 +312,7 @@ def submit():
         audit.log_rejection(
             creator_id=log_creator,
             reason="text_too_short",
+            request_id=request_id,  # CAPSTONE: the ticket number for this visit
             # CAPSTONE: how long our /submit code ran before turning this away
             duration_ms=round((time.perf_counter() - start) * 1000),
         )
@@ -303,6 +331,7 @@ def submit():
         audit.log_rejection(
             creator_id=log_creator,
             reason="text_too_long",
+            request_id=request_id,  # CAPSTONE: the ticket number for this visit
             # CAPSTONE: how long our /submit code ran before turning this away
             duration_ms=round((time.perf_counter() - start) * 1000),
         )
@@ -330,6 +359,11 @@ def submit():
         style_score=style_score,
         combined_score=combined_score,
         status="decided",
+        request_id=request_id,  # CAPSTONE: the ticket number for this visit
+        # CAPSTONE: the first 40 characters of what came in, cleaned up so it
+        # stays on one line. We call it only here, after the checks above have
+        # confirmed that `text` is real text.
+        input_preview=make_preview(text),
         # CAPSTONE: "stop" the stopwatch and save the time our /submit code
         # spent on this submission, up to the moment just before this log line
         # is written. This is not the full round trip: it leaves out the time
