@@ -296,10 +296,20 @@ def submit():
     text = payload.get("text", "")
     creator_id = payload.get("creator_id")
 
+    # CAPSTONE FIX (criterion 2): the safe name is now made HERE, before the
+    # empty-text check, so that check can use it too. Before, it was made
+    # further down, and the early check used a weaker shortcut
+    # (`creator_id or "unknown"`) that let an object, a list or a number
+    # through into the log unchanged.
+    # `log_creator` is just the name we write in the log: the real name if
+    # there is a usable one, otherwise the word "unknown", so that something
+    # odd (like a whole object sent as a name) never gets copied into the log.
+    log_creator = creator_id if isinstance(creator_id, str) and creator_id.strip() else "unknown"
+
     # Refuse missing, empty or non-string text before it reaches the model.
     if not isinstance(text, str) or not text.strip():
         audit.log_rejection(
-            creator_id=creator_id or "unknown",
+            creator_id=log_creator,
             reason="missing_or_empty_text",
             request_id=request_id,  # CAPSTONE: the ticket number for this visit
             # CAPSTONE: the number we send back (400 means "bad request")
@@ -322,10 +332,8 @@ def submit():
     # Every submission must say who it is from (`creator_id`), because the
     # rate limit, the audit log and the appeal process all depend on knowing
     # that. If it is missing, blank or not a piece of text, we turn it away.
-    # `log_creator` is just the name we write in the log: the real name if
-    # there is a usable one, otherwise the word "unknown", so that something
-    # odd (like a whole object sent as a name) never gets copied into the log.
-    log_creator = creator_id if isinstance(creator_id, str) and creator_id.strip() else "unknown"
+    # (`log_creator`, the safe name for the log, is made higher up, before the
+    # empty-text check.)
 
     if not isinstance(creator_id, str) or not creator_id.strip():
         audit.log_rejection(
