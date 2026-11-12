@@ -1017,11 +1017,11 @@ A run that fails leaves a record too. These are the four kinds of failure I trig
 
 ## What It Costs
 
-**In one line:** one run costs about **0.09 seconds** of compute on my laptop once the model is loaded, and about **11.5 seconds** for the very first run after the service starts. It costs **$0**, because nothing is sent to a paid service.
+**In one line:** one run costs about **0.09 seconds** of handler time on my laptop once the model is loaded, and about **11.5 seconds** for the very first run after the service starts. It costs **$0**, because nothing is sent to a paid service.
 
 ### What "cost" means here
 
-Provenance Guard runs its GPT-2 model on my own computer, so there is no bill per request. The real cost is **time**: how many seconds of my computer's work one run takes. I measured that time two ways:
+Provenance Guard runs its GPT-2 model on my own computer, so there is no bill per request. The real cost is **time**: how many seconds one run takes. I measured that time two ways. Both are elapsed time on the clock, not CPU usage, which I did not measure:
 
 - **Handler time (`duration_ms` in the log):** how long my `/submit` code spent on the request, up to just before the log line is written.
 - **Round trip (curl's `time_total`):** how long the caller waited from sending the request to getting the full reply.
@@ -1056,12 +1056,12 @@ Provenance Guard runs its GPT-2 model on my own computer, so there is no bill pe
 
 I assume each person sends one submission, so 100 runs a day.
 
-- 100 runs × 0.0943 s = **9.4 seconds** of compute
+- 100 runs × 0.0943 s = **9.4 seconds** of handler time
 - Plus the first run after each start, **11.5 seconds**. If the service restarts once a day, that adds up to 9.4 + 11.5 = **about 21 seconds** a day.
 
-So 100 people a day is roughly **21 seconds of compute**, and no money.
+So 100 people a day is roughly **21 seconds of handler time**, and no money.
 
-The caller's side is a separate measurement: 100 runs × 0.0983 s (the average round trip) = about **9.8 seconds** of total waiting across all callers. That is wait time, not compute cost.
+The caller's side is a separate measurement: 100 runs × 0.0983 s (the average round trip) = about **9.8 seconds** of total waiting across all callers. That is wait time, a different measurement from handler time.
 
 ### What these numbers do not cover
 
@@ -1333,5 +1333,82 @@ The full output is in `results/capstone_trial_4.txt`, `results/capstone_trial_5.
 **What it cost, or did not.**
 
 - **Nothing broke that these criteria can see.** Criteria 1, 3, 4 and 5 were identical before and after, and the replies to the caller did not change.
-- **One real trade-off:** when someone sends an object or a number as a creator ID, the log now says `"unknown"`. Before, it showed the odd value. That is the safe choice, but a person reviewing the log can no longer see *what* strange thing was sent.
+- **One real trade-off:** when someone sends an object, a list or a number as a creator ID, the log now says `"unknown"`. Before, it showed the odd value. That is the safe choice, but a person reviewing the log can no longer see *what* strange thing was sent.
 - **What the fix does not cover:** `rate_limited()` in `app.py` still logs the creator ID as it was sent, and was not changed or tested. It goes in "What's Still Broken".
+
+## Capstone: What's Still Broken
+
+**No criterion is still missed.** Criterion 2 missed in the first three runs
+(2 of 5), and the fix in commit `20038ec` brought it to 5 of 5 in all three
+after-fix runs. The other four criteria were met in every run, before and
+after.
+
+**What is still open, what I'd do, and why I stopped:**
+
+- **`rate_limited()` may store an odd creator ID as it was sent.** By reading
+  the code, that handler logs the creator ID unchanged, like the empty-text
+  path did before the fix. I did not test it, so I cannot say it is broken or
+  fixed. *What I'd do:* apply the same safe-name step there and add a criterion
+  that tests it. *Why I stopped:* criterion 2 covered only the empty-text path,
+  and the assignment asked for one improvement.
+- **The fix has a cost.** An odd creator ID is now logged as `"unknown"`, so a
+  reviewer cannot see what strange value was sent. *What I'd do:* log the
+  value's type (for example "object") next to `"unknown"`. *Why I stopped:* it
+  is a second change and I had one improvement to make.
+- **My cost numbers are narrow.** They come from one laptop, 10 warm runs and
+  one 85-character text, and I did not measure the round trip of the cold
+  start. *What I'd do:* time texts up to the 1,600-character limit. *Why I
+  stopped:* none of my five criteria depended on it.
+- **The model download was not tested from scratch.** The model was already in
+  my cache during the clean-checkout test, and a NumPy warning appeared that I
+  did not investigate. *What I'd do:* test on a computer with no cache.
+  *Why I stopped:* I only had one machine.
+
+**What I'd do first, if I had another unit.** The first thing I would do is
+fix and test one specific gap: the part of my service that blocks people who
+send too many requests. My service keeps a log, which is like a notebook that
+records every visitor it turns away. In this unit I found that one part of the
+code sometimes wrote strange things into that notebook, such as a whole box of
+data, instead of a plain name. I fixed that for one kind of turned-away
+visitor, and my tests showed it worked. But the part that blocks people who
+send too many requests writes into the same notebook in a similar way, and I
+never tested it. By reading the code, I believe it has the same problem, but I
+cannot say so for sure until I try it. So I would write a new test for it, run
+it, and, if it fails, apply the same small fix I already used. I would choose
+this over my other ideas, such as measuring longer texts or checking a fresh
+install, because those would only make my numbers more complete. This one
+checks whether the notebook can be trusted for every way a visitor can be
+turned away, which is the promise my own tests make. It is also the smallest
+job on my list, so I could finish it quickly and be sure about it.
+
+## Capstone: How I Used AI
+
+**Capstone Moment 1: changing my plan after an AI caught an overclaim**
+
+- *What I asked for:* I asked an AI to help me pick which of my four projects to extend and which of the three shapes to use. I also wanted the result to be something I could talk about in a cybersecurity job search.
+- *What came back:* It suggested extending Provenance Guard with Shape C, adding a check on `/submit` that flags hidden instructions in a submitted text, such as "ignore all previous instructions". I wrote that plan into my README and my first commit. Then I showed the plan to a second AI. It pointed out that my detector never follows instructions at all: it scores how predictable the text is with GPT-2, and measures writing style. A phrase check would only flag known wording, and calling it "prompt-injection protection" would claim more than it does.
+- *What I changed:* I did not take that on trust. I checked it against my own README from Unit 8, which already said my service "never read or followed any instruction, because it only does maths", and that only two of the three attacks I planned to fix (PI01 and PI02) were truly broken by the injected text. Then I switched to Shape A, better logging on `/submit`. I kept the old plan in the README and marked it SUPERSEDED, and I wrote down the reason in "The Shape". I made the change as a new commit and did not rewrite history.
+
+**Capstone Moment 2: a test script with two real bugs, caught before I ran it**
+
+- *What I asked for:* I asked an AI to write a script that runs my five capstone criteria once per trial, so I would not type about fifty requests by hand. I then asked a second AI to review the plan before I ran anything.
+- *What came back:* The script made sense on paper, but the reviews found two real problems. First, a request with no usable creator ID is counted under my computer's address, and that address has the same limit of 5 requests a minute. Criteria 1 and 2 send seven such requests, so running them back to back would have produced "too many requests" errors instead of the errors I wanted to test. Second, the invisible line-separator character had been lost from one of my test texts, so that test would have compared a preview with a space that was never in the input.
+- *What I changed:* I checked both claims against my code. I made the script wait 65 seconds where those two criteria share the address limit. I built the separator character explicitly in the code so it cannot be lost, and I ran a check showing all five preview inputs matched their expected previews before any trial. I also made the script refuse to overwrite an earlier results file, and save complete log lines, not shortened ones. One part I changed myself: criterion 4's PASS or FAIL now comes only from `test_scoring_error.py`, and the script's second capture is labeled evidence only.
+
+**Capstone Moment 3: drafting my five criteria with AI**
+
+- *What I asked for:* My instructor said I could use AI to help with my criteria. I gave it my work and my own ideas about what to measure, and asked it to turn them into candidate criteria.
+- *What came back:* Nine candidates, each with what to do, what to look at, a target and a reason. They covered successful records, bad input, a creator ID that is not text, the rate limit, a scoring crash, the preview, timing and the run instructions.
+- *What I changed:* I chose five and left four out. I left out a timing criterion because its target would have come from numbers I had already measured. I kept one I expected to miss, about creator IDs, because it was a real gap and would give me something to diagnose and fix. I dropped the easiest candidate because it would almost surely pass. I ran the five through the course self-check, and I committed them in their own commit before any trial results existed.
+
+**Capstone Moment 4: finding the cause of the missed criterion**
+
+- *What I asked for:* After criterion 2 came out 2 of 5 in all three runs, I asked an AI to explain which part of my code could make the log store an object, a list and a number instead of text.
+- *What came back:* It read `submit()` in `app.py` and traced the problem to the check that turns away missing or empty text. That check logged the creator ID with `creator_id or "unknown"`, which only replaces values that count as empty, such as `null` and an empty string. The safe-name step, `log_creator`, was made further down, after that check, so the check could not use it. It also noticed that `rate_limited()` logs the creator ID the same way, and that my criterion did not test it.
+- *What I changed:* I checked the explanation against my trial output. The three failures were exactly the three values that count as "something" (an object, a list and 123), and the two passes were exactly the two that count as empty. I wrote the diagnosis in plain words for someone who does not program. A later review made me tighten two sentences that said more than I had tested: "before the service has looked at the creator" became "before the service validates the creator ID", and "every time it turns a request away" became a statement about the empty-text path only. I left `rate_limited()` out of the claims and listed it as untested.
+
+**Capstone Moment 5: choosing and checking the fix**
+
+- *What I asked for:* I asked for the smallest fix aimed at that cause, and no extra changes.
+- *What came back:* Move the `log_creator` line above the empty-text check, and use it in that rejection's log record. Delete the old copy lower down. It showed me the exact lines before and after, with comments.
+- *What I changed:* I read the before and after code before agreeing, and I only agreed once I understood why it would fix three cases with one change. After it was applied and committed, I ran all five criteria three more times. Criterion 2 went from 2 of 5 to 5 of 5 in every run, and the other four criteria came out exactly as before. I did not claim more than that: I wrote the trade-off in my README (an odd creator ID is now logged as "unknown", so the original value is lost), and I listed `rate_limited()` under "What's Still Broken", because I did not change or test it.
