@@ -1,0 +1,117 @@
+CAPSTONE TRIAL 5   started 2026-11-12 17:13:30
+code version (git commit): 20038ec
+   (waiting 65 s so the per-address rate limit resets: start of the trial)
+
+=== CRITERION 1: bad input gets the right reply and exactly one log record ===
+-- JSON list: PASS
+   reply: 400 {
+  "error": "invalid_request",
+  "message": "Please send a JSON object with text and creator_id."
+}
+   log:   {"timestamp": "2026-11-12T22:14:35+00:00", "creator_id": "unknown", "event": "rejected", "status": "rejected", "reason": "invalid_request", "request_id": "4292fbcf-1964-422e-b004-42734d0c9276", "http_status": 400, "outcome": "rejected", "input_preview": null, "duration_ms": 0}
+-- missing text: PASS
+   reply: 400 {
+  "error": "text_required",
+  "message": "Please send some writing to check."
+}
+   log:   {"timestamp": "2026-11-12T22:14:35+00:00", "creator_id": "c1_t5_e3935e", "event": "rejected", "status": "rejected", "reason": "missing_or_empty_text", "request_id": "f67ed0c8-5ff6-4287-a871-feeb5a57e0f9", "http_status": 400, "outcome": "rejected", "input_preview": "", "duration_ms": 0}
+-- empty text: PASS
+   reply: 400 {
+  "error": "text_required",
+  "message": "Please send some writing to check."
+}
+   log:   {"timestamp": "2026-11-12T22:14:35+00:00", "creator_id": "c2_t5_e3935e", "event": "rejected", "status": "rejected", "reason": "missing_or_empty_text", "request_id": "9336cc0d-65e6-4f24-82a3-5e373e36495d", "http_status": 400, "outcome": "rejected", "input_preview": "", "duration_ms": 0}
+-- no creator: PASS
+   reply: 400 {
+  "error": "creator_id_required",
+  "message": "Please tell us who is submitting this writing."
+}
+   log:   {"timestamp": "2026-11-12T22:14:35+00:00", "creator_id": "unknown", "event": "rejected", "status": "rejected", "reason": "creator_id_required", "request_id": "5a06be2b-bb62-4f61-a4a8-bd174c00042f", "http_status": 400, "outcome": "rejected", "input_preview": "This text has no creator attached to it.", "duration_ms": 0}
+-- 19 characters: PASS
+   reply: 400 {
+  "error": "text_too_short",
+  "message": "Please send at least 20 characters of writing."
+}
+   log:   {"timestamp": "2026-11-12T22:14:35+00:00", "creator_id": "c3_t5_e3935e", "event": "rejected", "status": "rejected", "reason": "text_too_short", "request_id": "f3a80300-4e7a-4499-abe3-018328e9ab1c", "http_status": 400, "outcome": "rejected", "input_preview": "Nineteen characters", "duration_ms": 0}
+-- 1,601 characters: PASS
+   reply: 413 {
+  "error": "text_too_long",
+  "message": "Please send no more than 1,600 characters at a time."
+}
+   log:   {"timestamp": "2026-11-12T22:14:35+00:00", "creator_id": "c4_t5_e3935e", "event": "rejected", "status": "rejected", "reason": "text_too_long", "request_id": "0a3301cf-2967-4893-90d0-79ffde78117c", "http_status": 413, "outcome": "rejected", "input_preview": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa", "duration_ms": 0}
+   (waiting 65 s so the per-address rate limit resets: between criterion 1 and 2, both use the per-address limit)
+
+=== CRITERION 2: a creator ID that is not text is stored as text ===
+-- creator_id = object: PASS   reply 400; stored creator_id = 'unknown' (str)
+   log:   {"timestamp": "2026-11-12T22:15:40+00:00", "creator_id": "unknown", "event": "rejected", "status": "rejected", "reason": "missing_or_empty_text", "request_id": "60dfe755-278a-4b45-941c-53dd70abb7f0", "http_status": 400, "outcome": "rejected", "input_preview": "", "duration_ms": 0}
+-- creator_id = list: PASS   reply 400; stored creator_id = 'unknown' (str)
+   log:   {"timestamp": "2026-11-12T22:15:40+00:00", "creator_id": "unknown", "event": "rejected", "status": "rejected", "reason": "missing_or_empty_text", "request_id": "d0e4c40e-cb25-444f-b91a-dbfdb26260fc", "http_status": 400, "outcome": "rejected", "input_preview": "", "duration_ms": 0}
+-- creator_id = number 123: PASS   reply 400; stored creator_id = 'unknown' (str)
+   log:   {"timestamp": "2026-11-12T22:15:40+00:00", "creator_id": "unknown", "event": "rejected", "status": "rejected", "reason": "missing_or_empty_text", "request_id": "f0502e66-8c37-4150-86d6-dd3ba1f875bc", "http_status": 400, "outcome": "rejected", "input_preview": "", "duration_ms": 0}
+-- creator_id = null: PASS   reply 400; stored creator_id = 'unknown' (str)
+   log:   {"timestamp": "2026-11-12T22:15:40+00:00", "creator_id": "unknown", "event": "rejected", "status": "rejected", "reason": "missing_or_empty_text", "request_id": "4441d7f4-e0c2-4e97-9abf-31cec3765960", "http_status": 400, "outcome": "rejected", "input_preview": "", "duration_ms": 0}
+-- creator_id = empty string: PASS   reply 400; stored creator_id = 'unknown' (str)
+   log:   {"timestamp": "2026-11-12T22:15:40+00:00", "creator_id": "unknown", "event": "rejected", "status": "rejected", "reason": "missing_or_empty_text", "request_id": "f360b4ba-edd3-4866-b94f-196837b62b59", "http_status": 400, "outcome": "rejected", "input_preview": "", "duration_ms": 0}
+
+=== CRITERION 3: the sixth request in a minute is blocked, and recorded ===
+   (warm-up request sent with its own creator ID)
+-- set 1 (creator rl1_t5_e3935e): PASS
+   statuses: [200, 200, 200, 200, 200, 429]   (six requests took 0.4 s)
+   6th request's log: {"timestamp": "2026-11-12T22:15:41+00:00", "creator_id": "rl1_t5_e3935e", "event": "rejected", "status": "rejected", "reason": "rate_limited", "limit": "5 per 1 minute", "request_id": "73b78fe2-f1e3-4fb3-98d3-40be6f90a164", "http_status": 429, "outcome": "rejected", "input_preview": "Today I tested the service with a short ", "duration_ms": 0}
+-- set 2 (creator rl2_t5_e3935e): PASS
+   statuses: [200, 200, 200, 200, 200, 429]   (six requests took 0.3 s)
+   6th request's log: {"timestamp": "2026-11-12T22:15:41+00:00", "creator_id": "rl2_t5_e3935e", "event": "rejected", "status": "rejected", "reason": "rate_limited", "limit": "5 per 1 minute", "request_id": "cbf89599-9689-48f5-9ef2-4e88939a51f2", "http_status": 429, "outcome": "rejected", "input_preview": "Today I tested the service with a short ", "duration_ms": 0}
+-- set 3 (creator rl3_t5_e3935e): PASS
+   statuses: [200, 200, 200, 200, 200, 429]   (six requests took 0.3 s)
+   6th request's log: {"timestamp": "2026-11-12T22:15:41+00:00", "creator_id": "rl3_t5_e3935e", "event": "rejected", "status": "rejected", "reason": "rate_limited", "limit": "5 per 1 minute", "request_id": "9c3ee0fb-d769-4d2f-9f10-b30e04141fff", "http_status": 429, "outcome": "rejected", "input_preview": "Today I tested the service with a short ", "duration_ms": 0}
+
+=== CRITERION 4: a scoring crash gives a safe error and an error record ===
+-- run 1: PASS
+   test_scoring_error.py said: OK
+   evidence only (does not change the result): the same crash, run by this script
+   reply: 500 {"error":"scoring_error","message":"Something went wrong on our side while checking this writing. Please try again later."}
+   error record (temporary log): {"timestamp": "2026-11-12T22:15:42+00:00", "creator_id": "crash_t5_e3935e", "event": "error", "status": "error", "reason": "scoring_error", "request_id": "1d707cde-c8eb-4567-b2bb-9139af2e46c1", "http_status": 500, "outcome": "error", "error_type": "RuntimeError", "input_preview": "Today I tested the service with a short ", "duration_ms": 5}
+   evidence check: all as expected
+-- run 2: PASS
+   test_scoring_error.py said: OK
+   evidence only (does not change the result): the same crash, run by this script
+   reply: 500 {"error":"scoring_error","message":"Something went wrong on our side while checking this writing. Please try again later."}
+   error record (temporary log): {"timestamp": "2026-11-12T22:15:43+00:00", "creator_id": "crash_t5_e3935e", "event": "error", "status": "error", "reason": "scoring_error", "request_id": "bd1d7110-fca2-4b74-8f91-d18fc52c26de", "http_status": 500, "outcome": "error", "error_type": "RuntimeError", "input_preview": "Today I tested the service with a short ", "duration_ms": 0}
+   evidence check: all as expected
+-- run 3: PASS
+   test_scoring_error.py said: OK
+   evidence only (does not change the result): the same crash, run by this script
+   reply: 500 {"error":"scoring_error","message":"Something went wrong on our side while checking this writing. Please try again later."}
+   error record (temporary log): {"timestamp": "2026-11-12T22:15:43+00:00", "creator_id": "crash_t5_e3935e", "event": "error", "status": "error", "reason": "scoring_error", "request_id": "d5079d11-1d87-49f2-b39e-352ea69c59d2", "http_status": 500, "outcome": "error", "error_type": "RuntimeError", "input_preview": "Today I tested the service with a short ", "duration_ms": 0}
+   evidence check: all as expected
+
+=== CRITERION 5: the preview is cleaned and cut to 40 characters ===
+-- line break: PASS
+   expected: 'First line of a test. Second line, still'
+   got:      'First line of a test. Second line, still'
+   log:      {"timestamp": "2026-11-12T22:15:43+00:00", "content_id": "9c6450a3-8717-4e0f-8aee-a18bed8ee345", "creator_id": "pv1_t5_e3935e", "guess": "human", "model_score": 0.1152, "style_score": 0.4676, "combined_score": 0.2914, "label": "Thank you for sharing your writing. It looks like it was written by a real person, and that's great to see.", "status": "decided", "request_id": "c09e6c33-e043-4f66-a7f8-e1d839de42cc", "http_status": 200, "outcome": "accepted", "input_preview": "First line of a test. Second line, still", "duration_ms": 57}
+-- tab: PASS
+   expected: 'Column one column two column three and t'
+   got:      'Column one column two column three and t'
+   log:      {"timestamp": "2026-11-12T22:15:43+00:00", "content_id": "6ec510da-1c87-46ed-a6a6-3e162e96e93a", "creator_id": "pv2_t5_e3935e", "guess": "human", "model_score": 0.0044, "style_score": 0.2222, "combined_score": 0.1133, "label": "Thank you for sharing your writing. It looks like it was written by a real person, and that's great to see.", "status": "decided", "request_id": "92af5686-9d4c-4f3b-bc4a-557db103d1ea", "http_status": 200, "outcome": "accepted", "input_preview": "Column one column two column three and t", "duration_ms": 138}
+-- bell character: PASS
+   expected: 'Alert  character inside this made up sam'
+   got:      'Alert  character inside this made up sam'
+   log:      {"timestamp": "2026-11-12T22:15:43+00:00", "content_id": "e33bd348-474f-424d-8f18-4397de7ba269", "creator_id": "pv3_t5_e3935e", "guess": "human", "model_score": 0.001, "style_score": 0.1667, "combined_score": 0.0838, "label": "Thank you for sharing your writing. It looks like it was written by a real person, and that's great to see.", "status": "decided", "request_id": "d7da7671-8c3b-4ca3-8406-c4d342679606", "http_status": 200, "outcome": "accepted", "input_preview": "Alert  character inside this made up sam", "duration_ms": 51}
+-- line separator: PASS
+   expected: 'Before the separator after the separator'
+   got:      'Before the separator after the separator'
+   log:      {"timestamp": "2026-11-12T22:15:44+00:00", "content_id": "a2e2c2a1-31b4-48ed-93e9-46b2176778ca", "creator_id": "pv4_t5_e3935e", "guess": "human", "model_score": 0.1855, "style_score": 0.2273, "combined_score": 0.2064, "label": "Thank you for sharing your writing. It looks like it was written by a real person, and that's great to see.", "status": "decided", "request_id": "42b14f9d-0ec7-44d1-9376-66fa49706119", "http_status": 200, "outcome": "accepted", "input_preview": "Before the separator after the separator", "duration_ms": 56}
+-- 100 letters: PASS
+   expected: 'abcdefghijabcdefghijabcdefghijabcdefghij'
+   got:      'abcdefghijabcdefghijabcdefghijabcdefghij'
+   log:      {"timestamp": "2026-11-12T22:15:44+00:00", "content_id": "216dbc1a-ed83-4fc2-b079-7692f7fd2ea8", "creator_id": "pv5_t5_e3935e", "guess": "unsure", "model_score": 0.9906, "style_score": 0.1667, "combined_score": 0.5786, "label": "The result isn't clear. We can't tell for sure whether this was written by a person or with AI tools. If you'd like us to take another look, you can submit an appeal.", "status": "decided", "request_id": "a696a39d-66c2-46a6-ae1b-9f6705a3849d", "http_status": 200, "outcome": "accepted", "input_preview": "abcdefghijabcdefghijabcdefghijabcdefghij", "duration_ms": 74}
+
+=== SUMMARY (goes in the run-log table) ===
+Criterion 1 (bad input, 6 of 6): 6/6
+Criterion 2 (creator ID is text, 5 of 5): 5/5
+Criterion 3 (rate limit, 3 of 3): 3/3
+Criterion 4 (scoring crash, 3 of 3): 3/3
+Criterion 5 (preview exact, 5 of 5): 5/5
+
+saved to /Users/blessednatalia/Documents/A+CodePathAI/ai201-project4-provenance-guard-starter-v2026/results/capstone_trial_5.txt
