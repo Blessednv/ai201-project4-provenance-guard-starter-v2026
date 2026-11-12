@@ -888,7 +888,7 @@ This builds on Provenance Guard, the web service I made in Units 7 and 8. It rea
 
 **What's already there:** The service already keeps a log of its decisions and of the requests it turned away.
 
-**What's missing, and what I'm adding:** The log doesn't say how long a request took. It doesn't show what text came in. Turned-away requests also have no ID, so they're hard to match up. For every request to `/submit`, I plan to record:
+**What's missing, and what I'm adding:** The log doesn't say how long a request took. It doesn't show what text came in. Turned-away requests also have no ID, so they're hard to match up. For each request to `/submit`, the service is designed to record:
 
 - the time it arrived
 - a request ID
@@ -919,7 +919,7 @@ I picked Shape C, extend one capability. I am adding a prompt-injection check to
 
 **Current plan: Shape A (deploy and instrument), local with logs (Path B).**
 
-I am extending Provenance Guard with security-focused logging on the `/submit` route. Every `/submit` request, whether accepted, rejected, or ended by an error in scoring, will leave one structured record. Each record will hold the timestamp, a request ID, the outcome (accepted, rejected, or error), the rejection reason or error code if it wasn't accepted, a one-line preview of the first 40 characters of the text (sanitized for safe display: line breaks and other control characters replaced), the HTTP status code and a short outcome or error code (not the full response), and how long the request took. Requests blocked by the rate limit get a record with the same fields. Every record keeps all of these fields, and a field that isn't available, such as the preview for a request with no text, is set to null. A developer can then review how the service handled valid and invalid requests.
+I am extending Provenance Guard with security-focused logging on the `/submit` route. The service is designed to write one structured record for each `/submit` request, whether it is accepted, rejected, or ended by an error in scoring (unless writing to the log itself fails). Each record will hold the timestamp, a request ID, the outcome (accepted, rejected, or error), the rejection reason or error code if it wasn't accepted, a one-line preview of the first 40 characters of the text (sanitized for safe display: line breaks and other control characters replaced), the HTTP status code and a short outcome or error code (not the full response), and how long the request took. Requests blocked by the rate limit get a record with the same fields. Each `/submit` record written since this change includes the added fields `request_id`, `input_preview`, `http_status`, `outcome` and `duration_ms`. If a value isn't available, for example there is no text to preview, its field is set to null. Older entries from earlier units, and `/appeal` records, don't have these fields. A developer can then review how the service handled valid and invalid requests.
 
 **Why I changed from Shape C:** My detector scores text with GPT-2 and stylometry. Neither follows instructions in the text, so a check for phrases like "ignore all previous instructions" would only flag known text patterns. Calling it prompt-injection protection would overstate it. Also, only two of the three attacks I planned to fix (PI01 and PI02) were truly broken by the injected text. Better logging is a smaller, more honest extension, and the assignment requires structured logging anyway.
 
@@ -933,3 +933,138 @@ I am extending Provenance Guard with security-focused logging on the `/submit` r
 - I am not logging other routes such as `/appeal` in this unit.
 - I am not claiming the service detects or stops attacks. It records what happened.
 - Committed examples use only made-up test text, never private writing.
+
+## Running It
+
+**Path B: local, with logs.** I run Provenance Guard on my own computer, not on a hosted website. The GPT-2 model is about 550 MB, and a free host only gives 512 MB of memory, so it would not fit. The full steps are in [RUNNING.md](RUNNING.md), under "Capstone: local run (Path B)".
+
+**The one command that starts it:**
+
+```bash
+python app.py
+```
+
+**What it needs:** Python 3.11, 3.12 or 3.13 (not 3.14), the packages in `requirements.txt`, the GPT-2 model (about 550 MB, downloaded once with `python detector.py`), about 9 GB of free disk space, and 4 GB of memory recommended. No API key and no account.
+
+**I tested the instructions from a clean copy.** I cloned my own repo into a new folder, created a new `.venv`, and followed RUNNING.md. `python test.py` passed (9 passed, 0 failed), the service started, and a test request returned the same scores as my original copy. The details, and two things I noticed (a NumPy warning, and that the model was already in my computer's cache so the 550 MB download itself was not tested), are at the end of RUNNING.md.
+
+## Instrumentation
+
+<!-- TODO: paste at least ten real log entries here as text, and say what each field means. -->
+
+Each request to `/submit` writes one line to `logs/audit.jsonl`, as long as writing to the log succeeds (if the log write itself fails, there is no line). The file is plain text, one JSON record per line, so it can be read back with `tail`, with `GET /log`, or with `audit.read_entries()`. All the entries below are real, copied from that file, and all the text in them is made up.
+
+### What each field means
+
+| Field | What it tells you |
+|---|---|
+| `timestamp` | When the request was handled (UTC). |
+| `creator_id` | Who sent it. |
+| `request_id` | A unique ticket number for that one visit. |
+| `content_id` | The ID of a scored submission, which can be appealed. Rejected requests have none. |
+| `input_preview` | The first 40 characters of the text, cleaned onto one line. `null` when there was no text. |
+| `guess`, `label` | What the service decided, and the message the writer sees. |
+| `model_score`, `style_score`, `combined_score` | The two signals and the combined score behind the decision. |
+| `http_status` | The number the service replied with (200, 400, 413, 429 or 500). |
+| `outcome` | `accepted`, `rejected` or `error`. |
+| `reason`, `limit` | Why a request was turned away, and the limit if it was the rate limit. |
+| `event`, `status` | Older fields from Unit 7 and 8 (`rejected`, `decided`). |
+| `duration_ms` | Time spent in the handler that wrote the record, up to just before the log line is written. For rate-limited requests this is a different handler's time, so those numbers are not directly comparable. |
+
+### Ten successful runs
+
+These are the ten warm runs from the cost measurement (see "What It Costs"). The text was the same each time, so only the IDs and `duration_ms` change.
+
+```json
+{"timestamp": "2026-11-11T23:33:00+00:00", "content_id": "28091336-f507-4bc4-8309-e0d757721e06", "creator_id": "cost_warm_1", "guess": "human", "model_score": 0.2514, "style_score": 0.3448, "combined_score": 0.2981, "label": "Thank you for sharing your writing. It looks like it was written by a real person, and that's great to see.", "status": "decided", "request_id": "2ab57a25-4f67-442e-b5f4-c875d8110936", "http_status": 200, "outcome": "accepted", "input_preview": "Today I tested the service with a short ", "duration_ms": 83}
+{"timestamp": "2026-11-11T23:33:00+00:00", "content_id": "c6ad7d01-30ff-447b-ba1b-25ad19fbf961", "creator_id": "cost_warm_2", "guess": "human", "model_score": 0.2514, "style_score": 0.3448, "combined_score": 0.2981, "label": "Thank you for sharing your writing. It looks like it was written by a real person, and that's great to see.", "status": "decided", "request_id": "afbf423a-93a5-4e1d-a541-772c78968098", "http_status": 200, "outcome": "accepted", "input_preview": "Today I tested the service with a short ", "duration_ms": 75}
+{"timestamp": "2026-11-11T23:33:00+00:00", "content_id": "c3f755a3-b3f3-4d49-ad21-3cb968bae35b", "creator_id": "cost_warm_3", "guess": "human", "model_score": 0.2514, "style_score": 0.3448, "combined_score": 0.2981, "label": "Thank you for sharing your writing. It looks like it was written by a real person, and that's great to see.", "status": "decided", "request_id": "601931a0-2d84-4374-8f50-07f6c58c8a34", "http_status": 200, "outcome": "accepted", "input_preview": "Today I tested the service with a short ", "duration_ms": 77}
+{"timestamp": "2026-11-11T23:33:00+00:00", "content_id": "fbde5912-e313-47ba-976b-9458c7548811", "creator_id": "cost_warm_4", "guess": "human", "model_score": 0.2514, "style_score": 0.3448, "combined_score": 0.2981, "label": "Thank you for sharing your writing. It looks like it was written by a real person, and that's great to see.", "status": "decided", "request_id": "3bf7aaa4-05d2-497d-b008-8de9638bbbeb", "http_status": 200, "outcome": "accepted", "input_preview": "Today I tested the service with a short ", "duration_ms": 85}
+{"timestamp": "2026-11-11T23:33:00+00:00", "content_id": "4465d99d-9111-4c2e-bac2-04022d5b5cd6", "creator_id": "cost_warm_5", "guess": "human", "model_score": 0.2514, "style_score": 0.3448, "combined_score": 0.2981, "label": "Thank you for sharing your writing. It looks like it was written by a real person, and that's great to see.", "status": "decided", "request_id": "eb51c391-6748-44a1-a2dc-d75780eda9c1", "http_status": 200, "outcome": "accepted", "input_preview": "Today I tested the service with a short ", "duration_ms": 80}
+{"timestamp": "2026-11-11T23:33:00+00:00", "content_id": "2e37ffdc-221b-4ff4-9829-ac51e7b078ca", "creator_id": "cost_warm_6", "guess": "human", "model_score": 0.2514, "style_score": 0.3448, "combined_score": 0.2981, "label": "Thank you for sharing your writing. It looks like it was written by a real person, and that's great to see.", "status": "decided", "request_id": "e28a3bb6-d83e-48a7-8b7a-533a72e6ab95", "http_status": 200, "outcome": "accepted", "input_preview": "Today I tested the service with a short ", "duration_ms": 88}
+{"timestamp": "2026-11-11T23:33:01+00:00", "content_id": "7c446770-7c8e-4240-9c13-c398c7afc41b", "creator_id": "cost_warm_7", "guess": "human", "model_score": 0.2514, "style_score": 0.3448, "combined_score": 0.2981, "label": "Thank you for sharing your writing. It looks like it was written by a real person, and that's great to see.", "status": "decided", "request_id": "0101d4f1-925f-4b58-8888-b12bdf38e7d7", "http_status": 200, "outcome": "accepted", "input_preview": "Today I tested the service with a short ", "duration_ms": 102}
+{"timestamp": "2026-11-11T23:33:01+00:00", "content_id": "89e0d4ee-70ac-4855-b894-34561538510c", "creator_id": "cost_warm_8", "guess": "human", "model_score": 0.2514, "style_score": 0.3448, "combined_score": 0.2981, "label": "Thank you for sharing your writing. It looks like it was written by a real person, and that's great to see.", "status": "decided", "request_id": "eca953e3-c892-4ce8-a87e-c5a0817a4f64", "http_status": 200, "outcome": "accepted", "input_preview": "Today I tested the service with a short ", "duration_ms": 78}
+{"timestamp": "2026-11-11T23:33:01+00:00", "content_id": "05bfe19c-84de-4472-8af1-855330bb0d01", "creator_id": "cost_warm_9", "guess": "human", "model_score": 0.2514, "style_score": 0.3448, "combined_score": 0.2981, "label": "Thank you for sharing your writing. It looks like it was written by a real person, and that's great to see.", "status": "decided", "request_id": "db858fb0-27a3-4e92-a899-4281e5684e24", "http_status": 200, "outcome": "accepted", "input_preview": "Today I tested the service with a short ", "duration_ms": 181}
+{"timestamp": "2026-11-11T23:33:01+00:00", "content_id": "f37fb9f7-9caf-42a2-9c36-892a5d2e3460", "creator_id": "cost_warm_10", "guess": "human", "model_score": 0.2514, "style_score": 0.3448, "combined_score": 0.2981, "label": "Thank you for sharing your writing. It looks like it was written by a real person, and that's great to see.", "status": "decided", "request_id": "f45582ab-052b-4be2-8c72-77fc5926c8e7", "http_status": 200, "outcome": "accepted", "input_preview": "Today I tested the service with a short ", "duration_ms": 94}
+```
+
+### Four failures
+
+A run that fails leaves a record too. These are the four kinds of failure I triggered on purpose, each sharing the logging fields that apply to it (`timestamp`, `creator_id`, `request_id`, `http_status`, `outcome`, `input_preview`, `duration_ms`). Fields that don't apply to a failure, such as `content_id` and the scores, are left out, and `input_preview` is `null` when there was no text.
+
+**Text too short (400):**
+```json
+{"timestamp": "2026-11-11T16:51:53+00:00", "creator_id": "status_check_short", "event": "rejected", "status": "rejected", "reason": "text_too_short", "request_id": "2ae040c3-a6ce-49e8-bff8-d6b44586c89d", "http_status": 400, "outcome": "rejected", "input_preview": "Too short", "duration_ms": 10}
+```
+
+**Text too long (413).** The text was 1,700 made-up characters, and only the first 40 are kept:
+```json
+{"timestamp": "2026-11-11T16:51:57+00:00", "creator_id": "status_check_long", "event": "rejected", "status": "rejected", "reason": "text_too_long", "request_id": "0c7e0d86-1113-42cc-bbd4-63f5a0c50431", "http_status": 413, "outcome": "rejected", "input_preview": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa", "duration_ms": 0}
+```
+
+**Request was not a JSON object (400).** There is no text, so `input_preview` is `null`:
+```json
+{"timestamp": "2026-11-11T16:52:02+00:00", "creator_id": "unknown", "event": "rejected", "status": "rejected", "reason": "invalid_request", "request_id": "b2158b89-8d81-4d36-912c-f4369601c5e0", "http_status": 400, "outcome": "rejected", "input_preview": null, "duration_ms": 0}
+```
+
+**Rate limited (429).** The sixth request in a minute from the same creator:
+```json
+{"timestamp": "2026-11-11T17:03:13+00:00", "creator_id": "rate_check_2", "event": "rejected", "status": "rejected", "reason": "rate_limited", "limit": "5 per 1 minute", "request_id": "afe73dd9-b079-4516-a70a-b58f5712bcb2", "http_status": 429, "outcome": "rejected", "input_preview": "Too short", "duration_ms": 0}
+```
+
+**A fifth kind, a crash while scoring.** It is logged as `"outcome": "error"` with `"http_status": 500`, but it is not in the real log above. I proved it with `test_scoring_error.py`, which makes scoring crash on purpose and checks the record in a temporary log, so my real log stays clean. The test passed.
+
+
+## What It Costs
+
+**In one line:** one run costs about **0.09 seconds** of compute on my laptop once the model is loaded, and about **11.5 seconds** for the very first run after the service starts. It costs **$0**, because nothing is sent to a paid service.
+
+### What "cost" means here
+
+Provenance Guard runs its GPT-2 model on my own computer, so there is no bill per request. The real cost is **time**: how many seconds of my computer's work one run takes. I measured that time two ways:
+
+- **Handler time (`duration_ms` in the log):** how long my `/submit` code spent on the request, up to just before the log line is written.
+- **Round trip (curl's `time_total`):** how long the caller waited from sending the request to getting the full reply.
+
+### How I measured it
+
+1. I stopped the service and started it fresh with `python app.py`.
+2. I sent one request with a made-up text (85 characters). That is the **first run**, and it includes loading the model. Its handler time was **11,528 ms**. I did not capture curl's round trip for this run.
+3. I then sent the **same text 10 more times**, each with a different `creator_id` (`cost_warm_1` to `cost_warm_10`) so the rate limit (5 per minute per creator) would not block any of them. I recorded curl's round trip for each run and read each run's handler time from `logs/audit.jsonl`.
+
+| Run | Handler time | Round trip |
+|---|---|---|
+| 1 | 83 ms | 89 ms |
+| 2 | 75 ms | 79 ms |
+| 3 | 77 ms | 81 ms |
+| 4 | 85 ms | 89 ms |
+| 5 | 80 ms | 84 ms |
+| 6 | 88 ms | 92 ms |
+| 7 | 102 ms | 105 ms |
+| 8 | 78 ms | 82 ms |
+| 9 | 181 ms | 185 ms |
+| 10 | 94 ms | 97 ms |
+| **Average** | **94.3 ms** (min 75, max 181) | **98.3 ms** (min 79, max 185) |
+
+**What the numbers say:**
+
+- A normal run costs about **94 ms** of handler time (about 98 ms for the caller).
+- The gap between the two averaged **about 4 ms** across these ten runs.
+- Run 9 took about twice as long as the others. I did not find out why.
+
+### What it would cost for 100 people a day
+
+I assume each person sends one submission, so 100 runs a day.
+
+- 100 runs × 0.0943 s = **9.4 seconds** of compute
+- Plus the first run after each start, **11.5 seconds**. If the service restarts once a day, that adds up to 9.4 + 11.5 = **about 21 seconds** a day.
+
+So 100 people a day is roughly **21 seconds of compute**, and no money.
+
+The caller's side is a separate measurement: 100 runs × 0.0983 s (the average round trip) = about **9.8 seconds** of total waiting across all callers. That is wait time, not compute cost.
+
+### What these numbers do not cover
+
+- They come from **one laptop** and **10 runs** of **one short text** (85 characters). Longer texts, up to the 1,600-character limit, were not measured and would probably take longer.
+- The **cold-start** figure is **one** measurement.
+- Handler time leaves out the time to receive the request and send the reply. The 4 ms gap above is measured on this machine only.
