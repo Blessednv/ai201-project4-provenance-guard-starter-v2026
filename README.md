@@ -1195,3 +1195,143 @@ The results were identical in all three runs. The creator IDs, `request_id`s and
    got:      'abcdefghijabcdefghijabcdefghijabcdefghij'
    log:      {"timestamp": "2026-11-12T19:40:17+00:00", "content_id": "76545057-f715-4a6f-b564-a27ee9e145fd", "creator_id": "pv5_t1_ec1a72", "guess": "unsure", "model_score": 0.9906, "style_score": 0.1667, "combined_score": 0.5786, "label": "The result isn't clear. We can't tell for sure whether this was written by a person or with AI tools. If you'd like us to take another look, you can submit an appeal.", "status": "decided", "request_id": "6de4a5d7-9039-4d87-9eef-72bad1dca394", "http_status": 200, "outcome": "accepted", "input_preview": "abcdefghijabcdefghijabcdefghijabcdefghij", "duration_ms": 115}
 ```
+
+### Diagnosis of the miss: criterion 2
+
+**What the criterion promised.** When a request is turned away for missing or
+empty text, the `creator_id` written in the log should always be text. I tested five strange values, with
+empty text each time: an object, a list, the number 123, `null` and an empty
+string. The target was 5 of 5 stored as text.
+
+**What happened.** The target was missed in all three runs, with the same result
+each time: 2 of 5.
+
+| `creator_id` sent | What the log stored | Text? |
+|---|---|---|
+| an object `{"id": "x"}` | the object itself | No |
+| a list `["a"]` | the list itself | No |
+| the number `123` | the number itself | No |
+| `null` | the word `"unknown"` | Yes |
+| an empty string `""` | the word `"unknown"` | Yes |
+
+**In plain words.** The service has a notebook (the log). In this empty-text
+rejection path, it writes down who sent the request. It is supposed to write a
+name, as text. For three of my five strange values, it wrote down the strange thing
+itself instead.
+
+**Where it happens.** In `app.py`, inside the `submit()` function, in the
+check that turns away requests whose text is missing or empty. The line is:
+
+```python
+creator_id=creator_id or "unknown",
+```
+
+That check runs *early*, before the service validates the creator ID.
+
+**How it happens, step by step.**
+
+1. A request arrives. The code reads `creator_id` from it, exactly as sent.
+2. The first check looks at the text. If the text is missing or empty, the
+   request is turned away and a log line is written *right then*.
+3. For that log line, the code needs a name. It uses a shortcut: take the
+   `creator_id`, and if it is "empty", write `"unknown"` instead.
+4. In Python, `x or "unknown"` only swaps in `"unknown"` when `x` counts as
+   empty: `null`, an empty string, the number 0, an empty list or an empty
+   object. Anything that is not empty passes straight through.
+5. An object with something in it, a list with something in it, and the number
+   123 are all "not empty". So they pass through and are written into the log
+   unchanged.
+6. `null` and `""` are "empty", so they became `"unknown"`. That is exactly the
+   2 passes.
+
+**Why the code does not protect against this.** The service already has a
+proper cleaning step, a variable called `log_creator`. It writes the creator's
+name if it is real text, and `"unknown"` otherwise. The comment in the code even
+says it exists "so that something odd (like a whole object sent as a name) never
+gets copied into the log". But it is defined further down in `submit()`, *after*
+the empty-text check. So the early check cannot use it, and uses the weaker
+shortcut. The later checks (missing creator, text too short, text too long) all
+use `log_creator`, which is why they were fine.
+
+**The stage and the mechanism.** The stage is the empty-text check in `submit()`.
+The mechanism is that the safe-name step runs after this check, so the check
+falls back on `creator_id or "unknown"`, which only replaces values that are
+empty, not values that are the wrong type. My criterion assumed every rejection
+path cleaned the name, and one of them did not.
+
+**One cause, not three problems.** The three failures (object, list, number)
+all come from that single line. Fixing the order, not each value separately,
+fixes all three.
+
+**What this is not.** It did not crash anything, and the reply to the caller was
+correct each time (a 400 with `text_required`). Only the stored value was
+wrong. I also expected this miss before running: I had seen an object stored in
+my real log earlier, and I wrote the criterion because it was a known
+inconsistency.
+
+**A related spot I did not test.** The rate-limit handler, `rate_limited()` in
+`app.py`, also writes `creator_id` into its log line as it was sent. It may
+have the same flaw. Criterion 2 does not test it, so I note it here and do not
+claim it is fixed or broken.
+
+## Capstone: The Improvement, consistent creator IDs in rejection logs
+
+**What I changed.** One change, in `submit()` in `app.py`: the safe creator name (`log_creator`) is now made *before* the empty-text check, and that check uses it. Before, the empty-text check wrote `creator_id or "unknown"` into the log, and the safe name was only made further down. The old copy of the line lower down was removed, and its comment now points to the new place. The fix is in git commit `20038ec`. The "before" runs used commit `737bdfc`.
+
+```python
+# Before: the early check used a weak shortcut
+creator_id=creator_id or "unknown",
+
+# After: the safe name is made first, then used
+log_creator = creator_id if isinstance(creator_id, str) and creator_id.strip() else "unknown"
+...
+creator_id=log_creator,
+```
+
+**Why this change.** It follows directly from the diagnosis above. Criterion 2 missed because the empty-text check logged the creator ID with a shortcut that only replaces *empty* values, so an object, a list and the number 123 went into the log unchanged. The safe name already existed, but it was made too late for that check to use. Moving it up fixes that exact mechanism and nothing else.
+
+**Before and after, in the same format.** I re-ran the full set of five criteria, three times each, with the same script (`run_capstone_trials.py`) and no other code change.
+
+Before the fix (commit `737bdfc`):
+
+| Criterion | Target | Run 1 | Run 2 | Run 3 | Verdict |
+|---|---|---|---|---|---|
+| 1. Bad input gets the right reply and exactly one log record | 6 of 6 | 6/6 | 6/6 | 6/6 | MET |
+| 2. A creator ID that is not text is stored as text | 5 of 5 | 2/5 | 2/5 | 2/5 | MISSED |
+| 3. The sixth request in a minute is blocked, and recorded | 3 of 3 | 3/3 | 3/3 | 3/3 | MET |
+| 4. A scoring crash gives a safe error and an error record | 3 of 3 | 3/3 | 3/3 | 3/3 | MET |
+| 5. The preview is cleaned and cut to 40 characters | 5 of 5 | 5/5 | 5/5 | 5/5 | MET |
+
+After the fix (commit `20038ec`):
+
+| Criterion | Target | Run 4 | Run 5 | Run 6 | Verdict |
+|---|---|---|---|---|---|
+| 1. Bad input gets the right reply and exactly one log record | 6 of 6 | 6/6 | 6/6 | 6/6 | MET |
+| 2. A creator ID that is not text is stored as text | 5 of 5 | 5/5 | 5/5 | 5/5 | **MET** |
+| 3. The sixth request in a minute is blocked, and recorded | 3 of 3 | 3/3 | 3/3 | 3/3 | MET |
+| 4. A scoring crash gives a safe error and an error record | 3 of 3 | 3/3 | 3/3 | 3/3 | MET |
+| 5. The preview is cleaned and cut to 40 characters | 5 of 5 | 5/5 | 5/5 | 5/5 | MET |
+
+The full output is in `results/capstone_trial_4.txt`, `results/capstone_trial_5.txt` and `results/capstone_trial_6.txt`.
+
+**Real output for criterion 2 after the fix (Run 4, `results/capstone_trial_4.txt`).** Produced by the missing-or-empty-text check in `submit()` in `app.py`, which calls `audit.log_rejection()` in `audit.py`.
+```
+-- creator_id = object: PASS   reply 400; stored creator_id = 'unknown' (str)
+   log:   {"timestamp": "2026-11-12T22:11:48+00:00", "creator_id": "unknown", "event": "rejected", "status": "rejected", "reason": "missing_or_empty_text", "request_id": "627a92ad-2769-473a-9282-94eea59716bd", "http_status": 400, "outcome": "rejected", "input_preview": "", "duration_ms": 0}
+-- creator_id = list: PASS   reply 400; stored creator_id = 'unknown' (str)
+   log:   {"timestamp": "2026-11-12T22:11:48+00:00", "creator_id": "unknown", "event": "rejected", "status": "rejected", "reason": "missing_or_empty_text", "request_id": "175e3f4e-8989-4dcf-a5ef-0a576cf02c8f", "http_status": 400, "outcome": "rejected", "input_preview": "", "duration_ms": 0}
+-- creator_id = number 123: PASS   reply 400; stored creator_id = 'unknown' (str)
+   log:   {"timestamp": "2026-11-12T22:11:48+00:00", "creator_id": "unknown", "event": "rejected", "status": "rejected", "reason": "missing_or_empty_text", "request_id": "4e2c31c9-b7a2-4c67-b298-dd816fe6bd94", "http_status": 400, "outcome": "rejected", "input_preview": "", "duration_ms": 0}
+-- creator_id = null: PASS   reply 400; stored creator_id = 'unknown' (str)
+   log:   {"timestamp": "2026-11-12T22:11:48+00:00", "creator_id": "unknown", "event": "rejected", "status": "rejected", "reason": "missing_or_empty_text", "request_id": "6fef5fd4-caf5-4cf9-8115-6ad350b48773", "http_status": 400, "outcome": "rejected", "input_preview": "", "duration_ms": 0}
+-- creator_id = empty string: PASS   reply 400; stored creator_id = 'unknown' (str)
+   log:   {"timestamp": "2026-11-12T22:11:48+00:00", "creator_id": "unknown", "event": "rejected", "status": "rejected", "reason": "missing_or_empty_text", "request_id": "99d71746-c3c9-41bb-aa8b-8c1c80a0c07b", "http_status": 400, "outcome": "rejected", "input_preview": "", "duration_ms": 0}
+```
+
+**Did it help?** Yes. Criterion 2 went from 2 of 5 in every run to 5 of 5 in every run. The object, the list and the number 123 are now stored as the text `"unknown"`, like `null` and the empty string already were. I know it was the change that did it because the other four criteria came out exactly as before and no other code changed between the two sets of runs.
+
+**What it cost, or did not.**
+
+- **Nothing broke that these criteria can see.** Criteria 1, 3, 4 and 5 were identical before and after, and the replies to the caller did not change.
+- **One real trade-off:** when someone sends an object or a number as a creator ID, the log now says `"unknown"`. Before, it showed the odd value. That is the safe choice, but a person reviewing the log can no longer see *what* strange thing was sent.
+- **What the fix does not cover:** `rate_limited()` in `app.py` still logs the creator ID as it was sent, and was not changed or tested. It goes in "What's Still Broken".
