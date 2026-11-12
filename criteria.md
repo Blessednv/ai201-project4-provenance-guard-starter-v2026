@@ -154,3 +154,99 @@ Bad input is where a service usually breaks, and the edges (19 vs 20, 1,600 vs 1
      A number you missed stays where it is, gets diagnosed, and gets a fix
      attempted. That's where the points are.
      ───────────────────────────────────────────────────────────────────────── -->
+
+
+---
+
+# 🔒 CAPSTONE CRITERIA — Unit 9
+
+**Extension:** better logging on `/submit` (Shape A, local run, Path B).
+The five criteria above this line are from Unit 8 and stay as they were.
+These five were written **before** I ran any capstone trials. All inputs are made up.
+
+## Capstone criterion 1. Bad input gets the right reply and exactly one log record
+
+**Do:** send these six requests one at a time to `/submit`. Count the lines in
+`logs/audit.jsonl` before and after each one.
+
+| Request body | Expected reply | Expected log `reason` |
+|---|---|---|
+| `["not an object"]` | 400, error `invalid_request` | `invalid_request` |
+| `{"creator_id":"c1"}` (no text) | 400, error `text_required` | `missing_or_empty_text` |
+| `{"creator_id":"c2","text":""}` | 400, error `text_required` | `missing_or_empty_text` |
+| `{"text":"This text has no creator attached to it."}` | 400, error `creator_id_required` | `creator_id_required` |
+| `{"creator_id":"c3","text":"Nineteen characters"}` (19 characters) | 400, error `text_too_short` | `text_too_short` |
+| `{"creator_id":"c4","text":"a" repeated 1,601 times}` | 413, error `text_too_long` | `text_too_long` |
+
+**Target:** **6 of 6** requests add exactly **one** log line, with the expected
+`reason`, `outcome` "rejected", and an `http_status` equal to the status of the reply.
+
+**Why this target:** 20 and 1,600 characters are this service's real limits, so
+19 and 1,601 test the edges. Six of six, because each is a separate code path that
+can be wrong on its own. A log that disagrees with the reply sends an investigator
+the wrong way.
+
+## Capstone criterion 2. A creator ID that is not text is stored as text
+
+**Do:** send five requests with empty text and these `creator_id` values: an object
+`{"id":"x"}`, a list `["a"]`, the number `123`, `null`, and an empty string `""`.
+Read the `creator_id` field in each new log line.
+
+**Target:** **5 of 5** log lines have `creator_id` as a text string.
+
+**Why this target:** audit records should have predictable field types, so anyone
+or any program reading them knows what to expect. **I already expect this to miss.**
+In the empty-text path, the code logs `creator_id` as it was sent. I saw an object
+stored there in my real log earlier. I'm keeping the criterion because it's a real
+inconsistency that I want to diagnose and fix, not a surprise.
+
+## Capstone criterion 3. The sixth request in a minute is blocked, and recorded
+
+**Do:** send one valid request from `warmup_rl` to load the model. Then run **3
+trials**. In each trial, use a **new** creator ID (`rl_trial_1`, `rl_trial_2`,
+`rl_trial_3`) and send six valid requests within one minute, using this text:
+`Today I tested the service with a short sample. It should return a score and a label.`
+
+**Target:** in **3 of 3** trials, requests 1 to 5 return 200, and request 6 returns
+**429** with error `rate_limited`. Its log line has `reason` "rate_limited",
+`http_status` 429, `outcome` "rejected", a non-empty `request_id`, and a
+whole-number `duration_ms`.
+
+**Why this target:** the limit is 5 a minute per creator (`config.py`), so the sixth
+request is the edge. A blocked request that leaves no record would look like a quiet
+afternoon, so the record matters as much as the 429.
+
+## Capstone criterion 4. A scoring crash gives a safe error and an error record
+
+**Do:** run `python test_scoring_error.py` 3 times. The test makes the scoring
+function crash with the message "secret internal detail", sends a made-up
+submission, and checks a temporary log.
+
+**Target:** **3 of 3** runs pass. That means the reply is 500 with error
+`scoring_error` and does not contain "secret internal detail"; the log has exactly one
+record with `outcome` "error", `http_status` 500 and an `error_type`; and the message
+is not in the log.
+
+**Why this target:** a leaked error message shows internal details to the caller,
+and a crash with no record is invisible to whoever runs the service. This criterion
+is deterministic, so I expect 3 of 3.
+
+## Capstone criterion 5. The preview is cleaned and cut to 40 characters
+
+**Do:** send these five made-up texts, each with its own `creator_id`, and read
+`input_preview` in each new log line.
+
+| Text (JSON) | Expected `input_preview` |
+|---|---|
+| `"First line of a test.\nSecond line, still made up text here."` | `First line of a test. Second line, still` |
+| `"Column one\tcolumn two\tcolumn three and then some more words here."` | `Column one column two column three and t` |
+| `"Alert\u0007 character inside this made up sample sentence for testing."` | `Alert  character inside this made up sam` |
+| `"Before the separator after the separator and a few more words."` | `Before the separator after the separator` |
+| `"abcdefghij"` repeated 10 times (100 letters) | `abcdefghijabcdefghijabcdefghijabcdefghij` |
+
+**Target:** **5 of 5** previews equal the expected text **exactly**.
+
+**Why this target:** an exact match, because a "no control characters and at most
+40 characters" check would pass even if the preview were empty. The log is meant to
+show what came in on one readable line. The preview is not anonymised, so only
+made-up text is used.
