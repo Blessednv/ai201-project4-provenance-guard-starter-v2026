@@ -1312,7 +1312,7 @@ After the fix (commit `20038ec`):
 | 4. A scoring crash gives a safe error and an error record | 3 of 3 | 3/3 | 3/3 | 3/3 | MET |
 | 5. The preview is cleaned and cut to 40 characters | 5 of 5 | 5/5 | 5/5 | 5/5 | MET |
 
-The full output is in `results/capstone_trial_4.txt`, `results/capstone_trial_5.txt` and `results/capstone_trial_6.txt`.
+The full output is in `results/capstone_trial_4.txt`, `results/capstone_trial_5.txt` and `results/capstone_trial_6.txt`. The real output for criteria 1, 3, 4 and 5 after the fix is in those files too. Their results matched the before-fix runs, so I did not paste it again here. I pasted only the output for criterion 2, because it is the one that changed.
 
 **Real output for criterion 2 after the fix (Run 4, `results/capstone_trial_4.txt`).** Produced by the missing-or-empty-text check in `submit()` in `app.py`, which calls `audit.log_rejection()` in `audit.py`.
 ```
