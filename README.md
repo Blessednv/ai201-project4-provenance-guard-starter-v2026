@@ -1068,3 +1068,130 @@ The caller's side is a separate measurement: 100 runs × 0.0983 s (the average r
 - They come from **one laptop** and **10 runs** of **one short text** (85 characters). Longer texts, up to the 1,600-character limit, were not measured and would probably take longer.
 - The **cold-start** figure is **one** measurement.
 - Handler time leaves out the time to receive the request and send the reply. The 4 ms gap above is measured on this machine only.
+
+## Run Log and Verdicts (Capstone)
+
+I ran my five capstone criteria (see `criteria.md`, "CAPSTONE CRITERIA") three separate times, with **no code changed in between**. Every run used the same code version, git commit `737bdfc`. A small script, `run_capstone_trials.py`, sends the requests and saves the real output. Everything it sends is made-up text. The full output of each run is in `results/capstone_trial_1.txt`, `results/capstone_trial_2.txt` and `results/capstone_trial_3.txt`.
+
+(Trial 3 was started twice and stopped early before the complete run. The two stopped files held only a header, and I deleted them.)
+
+(I renamed the complete Trial 3 file from `capstone_trial_3_20261112_153057.txt` to `capstone_trial_3.txt`. Its last line, "saved to ...", still shows the old name because the script printed it before the rename. The contents are unchanged.)
+
+| Criterion | Target | Run 1 | Run 2 | Run 3 | Verdict |
+|---|---|---|---|---|---|
+| 1. Bad input gets the right reply and exactly one log record | 6 of 6 | 6/6 | 6/6 | 6/6 | MET |
+| 2. A creator ID that is not text is stored as text | 5 of 5 | 2/5 | 2/5 | 2/5 | MISSED |
+| 3. The sixth request in a minute is blocked, and recorded | 3 of 3 | 3/3 | 3/3 | 3/3 | MET |
+| 4. A scoring crash gives a safe error and an error record | 3 of 3 | 3/3 | 3/3 | 3/3 | MET |
+| 5. The preview is cleaned and cut to 40 characters | 5 of 5 | 5/5 | 5/5 | 5/5 | MET |
+
+The results were identical in all three runs. The creator IDs, `request_id`s and timestamps were different each time, so they were real re-runs. The diagnosis of the one miss (criterion 2) and the fix come in "The Improvement".
+
+### Real output, from Run 1 (`results/capstone_trial_1.txt`)
+
+**Criterion 1.** Produced by `submit()` in `app.py`, which calls `audit.log_rejection()` in `audit.py`.
+```
+-- JSON list: PASS
+   reply: 400 {
+  "error": "invalid_request",
+  "message": "Please send a JSON object with text and creator_id."
+}
+   log:   {"timestamp": "2026-11-12T19:38:50+00:00", "creator_id": "unknown", "event": "rejected", "status": "rejected", "reason": "invalid_request", "request_id": "5cf3bf1a-59cc-4c40-b154-d6a5bdccc825", "http_status": 400, "outcome": "rejected", "input_preview": null, "duration_ms": 0}
+-- missing text: PASS
+   reply: 400 {
+  "error": "text_required",
+  "message": "Please send some writing to check."
+}
+   log:   {"timestamp": "2026-11-12T19:38:50+00:00", "creator_id": "c1_t1_ec1a72", "event": "rejected", "status": "rejected", "reason": "missing_or_empty_text", "request_id": "462b9812-21ed-4ba0-9760-3c7be82435b1", "http_status": 400, "outcome": "rejected", "input_preview": "", "duration_ms": 8}
+-- empty text: PASS
+   reply: 400 {
+  "error": "text_required",
+  "message": "Please send some writing to check."
+}
+   log:   {"timestamp": "2026-11-12T19:38:50+00:00", "creator_id": "c2_t1_ec1a72", "event": "rejected", "status": "rejected", "reason": "missing_or_empty_text", "request_id": "10aa20d2-61f9-4530-86a9-68a7a58c34fb", "http_status": 400, "outcome": "rejected", "input_preview": "", "duration_ms": 0}
+-- no creator: PASS
+   reply: 400 {
+  "error": "creator_id_required",
+  "message": "Please tell us who is submitting this writing."
+}
+   log:   {"timestamp": "2026-11-12T19:38:50+00:00", "creator_id": "unknown", "event": "rejected", "status": "rejected", "reason": "creator_id_required", "request_id": "151ec3dc-5310-4c48-846b-6ed6c4a4be71", "http_status": 400, "outcome": "rejected", "input_preview": "This text has no creator attached to it.", "duration_ms": 0}
+-- 19 characters: PASS
+   reply: 400 {
+  "error": "text_too_short",
+  "message": "Please send at least 20 characters of writing."
+}
+   log:   {"timestamp": "2026-11-12T19:38:50+00:00", "creator_id": "c3_t1_ec1a72", "event": "rejected", "status": "rejected", "reason": "text_too_short", "request_id": "10fb1df7-e039-47ca-a0bb-80c992dfe9eb", "http_status": 400, "outcome": "rejected", "input_preview": "Nineteen characters", "duration_ms": 0}
+-- 1,601 characters: PASS
+   reply: 413 {
+  "error": "text_too_long",
+  "message": "Please send no more than 1,600 characters at a time."
+}
+   log:   {"timestamp": "2026-11-12T19:38:50+00:00", "creator_id": "c4_t1_ec1a72", "event": "rejected", "status": "rejected", "reason": "text_too_long", "request_id": "1adf4230-c1d3-4168-95cd-bc6874d692c0", "http_status": 413, "outcome": "rejected", "input_preview": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa", "duration_ms": 0}
+```
+
+**Criterion 2.** Produced by the missing-or-empty-text check in `submit()` in `app.py`, which calls `audit.log_rejection()` in `audit.py`.
+```
+-- creator_id = object: FAIL   reply 400; stored creator_id = {'id': 'x'} (dict)
+   log:   {"timestamp": "2026-11-12T19:39:55+00:00", "creator_id": {"id": "x"}, "event": "rejected", "status": "rejected", "reason": "missing_or_empty_text", "request_id": "f8238334-d840-461f-960b-aeb9864615cd", "http_status": 400, "outcome": "rejected", "input_preview": "", "duration_ms": 0}
+-- creator_id = list: FAIL   reply 400; stored creator_id = ['a'] (list)
+   log:   {"timestamp": "2026-11-12T19:39:55+00:00", "creator_id": ["a"], "event": "rejected", "status": "rejected", "reason": "missing_or_empty_text", "request_id": "d52afe58-5831-4356-ad78-a9a58f54ec93", "http_status": 400, "outcome": "rejected", "input_preview": "", "duration_ms": 0}
+-- creator_id = number 123: FAIL   reply 400; stored creator_id = 123 (int)
+   log:   {"timestamp": "2026-11-12T19:39:55+00:00", "creator_id": 123, "event": "rejected", "status": "rejected", "reason": "missing_or_empty_text", "request_id": "c9fad281-7c9d-4adc-9801-d6a6adb53b7b", "http_status": 400, "outcome": "rejected", "input_preview": "", "duration_ms": 0}
+-- creator_id = null: PASS   reply 400; stored creator_id = 'unknown' (str)
+   log:   {"timestamp": "2026-11-12T19:39:55+00:00", "creator_id": "unknown", "event": "rejected", "status": "rejected", "reason": "missing_or_empty_text", "request_id": "620fa238-4d6a-420a-a1a0-f8f48ff1c05d", "http_status": 400, "outcome": "rejected", "input_preview": "", "duration_ms": 0}
+-- creator_id = empty string: PASS   reply 400; stored creator_id = 'unknown' (str)
+   log:   {"timestamp": "2026-11-12T19:39:55+00:00", "creator_id": "unknown", "event": "rejected", "status": "rejected", "reason": "missing_or_empty_text", "request_id": "ff9befaa-ecb7-4cad-a326-d667a6b38a9a", "http_status": 400, "outcome": "rejected", "input_preview": "", "duration_ms": 0}
+```
+
+**Criterion 3.** Produced by `rate_limited()` in `app.py`.
+```
+-- set 1 (creator rl1_t1_ec1a72): PASS
+   statuses: [200, 200, 200, 200, 200, 429]   (six requests took 0.6 s)
+   6th request's log: {"timestamp": "2026-11-12T19:40:13+00:00", "creator_id": "rl1_t1_ec1a72", "event": "rejected", "status": "rejected", "reason": "rate_limited", "limit": "5 per 1 minute", "request_id": "9d737633-cd57-43a1-8416-ccc590f2938c", "http_status": 429, "outcome": "rejected", "input_preview": "Today I tested the service with a short ", "duration_ms": 0}
+-- set 2 (creator rl2_t1_ec1a72): PASS
+   statuses: [200, 200, 200, 200, 200, 429]   (six requests took 0.5 s)
+   6th request's log: {"timestamp": "2026-11-12T19:40:14+00:00", "creator_id": "rl2_t1_ec1a72", "event": "rejected", "status": "rejected", "reason": "rate_limited", "limit": "5 per 1 minute", "request_id": "ac891d53-80d4-424f-ad50-a2af3e5e783e", "http_status": 429, "outcome": "rejected", "input_preview": "Today I tested the service with a short ", "duration_ms": 0}
+-- set 3 (creator rl3_t1_ec1a72): PASS
+   statuses: [200, 200, 200, 200, 200, 429]   (six requests took 0.6 s)
+   6th request's log: {"timestamp": "2026-11-12T19:40:14+00:00", "creator_id": "rl3_t1_ec1a72", "event": "rejected", "status": "rejected", "reason": "rate_limited", "limit": "5 per 1 minute", "request_id": "012e70c1-57f8-462c-acb0-18760c456f58", "http_status": 429, "outcome": "rejected", "input_preview": "Today I tested the service with a short ", "duration_ms": 0}
+```
+
+**Criterion 4.** The PASS or FAIL for each run comes **only** from running `python test_scoring_error.py` (three runs, each printed `OK`). The reply and the error record shown below are **not** from those test runs. They come from a separate, evidence-only capture that `run_capstone_trials.py` does right after each test run: it makes the same pretend crash happen again and saves the real reply and the real log record, because the test itself writes its record to a temporary log that disappears. Both exercise the `except` branch of `submit()` in `app.py`, which calls `audit.log_error()` in `audit.py`.
+```
+-- run 1: PASS
+   test_scoring_error.py said: OK
+   reply: 500 {"error":"scoring_error","message":"Something went wrong on our side while checking this writing. Please try again later."}
+   error record (temporary log): {"timestamp": "2026-11-12T19:40:15+00:00", "creator_id": "crash_t1_ec1a72", "event": "error", "status": "error", "reason": "scoring_error", "request_id": "f31bd415-4711-43bd-ac4f-20aa61a38efa", "http_status": 500, "outcome": "error", "error_type": "RuntimeError", "input_preview": "Today I tested the service with a short ", "duration_ms": 5}
+-- run 2: PASS
+   test_scoring_error.py said: OK
+   reply: 500 {"error":"scoring_error","message":"Something went wrong on our side while checking this writing. Please try again later."}
+   error record (temporary log): {"timestamp": "2026-11-12T19:40:16+00:00", "creator_id": "crash_t1_ec1a72", "event": "error", "status": "error", "reason": "scoring_error", "request_id": "0e59e2e8-c280-453b-b87e-8969ac210b8c", "http_status": 500, "outcome": "error", "error_type": "RuntimeError", "input_preview": "Today I tested the service with a short ", "duration_ms": 0}
+-- run 3: PASS
+   test_scoring_error.py said: OK
+   reply: 500 {"error":"scoring_error","message":"Something went wrong on our side while checking this writing. Please try again later."}
+   error record (temporary log): {"timestamp": "2026-11-12T19:40:16+00:00", "creator_id": "crash_t1_ec1a72", "event": "error", "status": "error", "reason": "scoring_error", "request_id": "648157ca-8947-4321-8a34-d50978b749a1", "http_status": 500, "outcome": "error", "error_type": "RuntimeError", "input_preview": "Today I tested the service with a short ", "duration_ms": 0}
+```
+
+**Criterion 5.** Produced by `make_preview()` and `submit()` in `app.py`, which calls `audit.log_decision()` in `audit.py`.
+```
+-- line break: PASS
+   expected: 'First line of a test. Second line, still'
+   got:      'First line of a test. Second line, still'
+   log:      {"timestamp": "2026-11-12T19:40:16+00:00", "content_id": "f2e0971c-44c8-4c7a-b304-08ebe9366c65", "creator_id": "pv1_t1_ec1a72", "guess": "human", "model_score": 0.1152, "style_score": 0.4676, "combined_score": 0.2914, "label": "Thank you for sharing your writing. It looks like it was written by a real person, and that's great to see.", "status": "decided", "request_id": "2150743a-b9b3-4bfe-b213-27df1416bba3", "http_status": 200, "outcome": "accepted", "input_preview": "First line of a test. Second line, still", "duration_ms": 103}
+-- tab: PASS
+   expected: 'Column one column two column three and t'
+   got:      'Column one column two column three and t'
+   log:      {"timestamp": "2026-11-12T19:40:17+00:00", "content_id": "8bcac27e-0f9d-4ea6-a219-5f149d3dc4e2", "creator_id": "pv2_t1_ec1a72", "guess": "human", "model_score": 0.0044, "style_score": 0.2222, "combined_score": 0.1133, "label": "Thank you for sharing your writing. It looks like it was written by a real person, and that's great to see.", "status": "decided", "request_id": "276b1047-ba2f-4bff-a32a-0e5faa3edaa3", "http_status": 200, "outcome": "accepted", "input_preview": "Column one column two column three and t", "duration_ms": 97}
+-- bell character: PASS
+   expected: 'Alert  character inside this made up sam'
+   got:      'Alert  character inside this made up sam'
+   log:      {"timestamp": "2026-11-12T19:40:17+00:00", "content_id": "bb44915c-79f5-4323-ae08-8aa84daa1024", "creator_id": "pv3_t1_ec1a72", "guess": "human", "model_score": 0.001, "style_score": 0.1667, "combined_score": 0.0838, "label": "Thank you for sharing your writing. It looks like it was written by a real person, and that's great to see.", "status": "decided", "request_id": "141dead0-4f44-4cb0-b7a8-9500e0b707e0", "http_status": 200, "outcome": "accepted", "input_preview": "Alert  character inside this made up sam", "duration_ms": 87}
+-- line separator: PASS
+   expected: 'Before the separator after the separator'
+   got:      'Before the separator after the separator'
+   log:      {"timestamp": "2026-11-12T19:40:17+00:00", "content_id": "d02a693e-6de0-46c5-b16f-6dd0d0a068a3", "creator_id": "pv4_t1_ec1a72", "guess": "human", "model_score": 0.1855, "style_score": 0.2273, "combined_score": 0.2064, "label": "Thank you for sharing your writing. It looks like it was written by a real person, and that's great to see.", "status": "decided", "request_id": "2ec4d0c5-2a99-412c-ba05-dfe85f9772af", "http_status": 200, "outcome": "accepted", "input_preview": "Before the separator after the separator", "duration_ms": 107}
+-- 100 letters: PASS
+   expected: 'abcdefghijabcdefghijabcdefghijabcdefghij'
+   got:      'abcdefghijabcdefghijabcdefghijabcdefghij'
+   log:      {"timestamp": "2026-11-12T19:40:17+00:00", "content_id": "76545057-f715-4a6f-b564-a27ee9e145fd", "creator_id": "pv5_t1_ec1a72", "guess": "unsure", "model_score": 0.9906, "style_score": 0.1667, "combined_score": 0.5786, "label": "The result isn't clear. We can't tell for sure whether this was written by a person or with AI tools. If you'd like us to take another look, you can submit an appeal.", "status": "decided", "request_id": "6de4a5d7-9039-4d87-9eef-72bad1dca394", "http_status": 200, "outcome": "accepted", "input_preview": "abcdefghijabcdefghijabcdefghijabcdefghij", "duration_ms": 115}
+```
